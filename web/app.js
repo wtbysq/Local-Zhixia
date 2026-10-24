@@ -936,7 +936,9 @@
   function genResultCard(r, prompt) {
     var el = document.createElement("div");
     el.className = "gencard";
-    var isVideo = (r.kind === "video") || /\.(webm|mp4|avi)$/i.test(r.url || "");
+    // 老版本的视频可能是动画 WebP：它得用 <img> 放，塞进 <video> 是放不出来的
+    var isWebp = /\.webp$/i.test(r.url || "");
+    var isVideo = !isWebp && ((r.kind === "video") || /\.(webm|mp4|avi)$/i.test(r.url || ""));
     var media;
     if (isVideo) {
       media = '<video src="' + esc(r.url) + '" autoplay loop muted playsinline></video>';

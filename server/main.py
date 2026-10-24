@@ -519,7 +519,11 @@ class Handler(BaseHTTPRequestHandler):
             "fps": max(1, min(60, int(body.get("fps") or defaults.get("fps") or 16))),
         }
 
-        ext = ".webp" if video else ".png"
+        # 视频容器可选：webm（真视频）/ webp（动画图）/ avi（老兼容）
+        fmt = str(config.CFG.get("video_format") or "webm").lower().lstrip(".")
+        if fmt not in ("webm", "webp", "avi"):
+            fmt = "webm"
+        ext = "." + fmt if video else ".png"
         stamp = time.strftime("%Y%m%d-%H%M%S")
         fname = "%s-%s%s" % (kind, stamp, ext)
         out_dir = config.gen_dir(kind)          # data/图片 或 data/视频

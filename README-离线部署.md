@@ -55,7 +55,7 @@
 
 ```
 data\图片\     生成的图片（.png）
-data\视频\     生成的视频（.webp 动图）
+data\视频\     生成的视频（.webm，可用 config.json 的 video_format 改容器）
 ```
 
 每个产物旁边有一个同名 `.json`，记录当时的提示词与全部参数，可以照着复现同一条结果。
@@ -169,6 +169,7 @@ sqlite3 data/app.db "select key,value from settings"
 | `ctx_ceiling` | 硬上限，任何请求都不能超过 | `16384` |
 | `snapshot.level` | 请求快照密度：`off` / `basic` / `full` | `basic` |
 | `vram_overhead_mb` | 权重与 KV 之外的固定开销 | `1700` |
+| `video_format` | 视频容器：`webm`（真视频）/ `webp`（动画图）/ `avi`（老格式，最大） | `webm` |
 
 ### 换引擎
 

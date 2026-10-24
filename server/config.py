@@ -113,6 +113,11 @@ DEFAULTS = {
     # ---- 资产层 ----
     "models_dir": "models",
     "vram_overhead_mb": 1700,
+    # 视频产物容器。引擎支持 webm / webp（动图）/ avi 三种单文件输出：
+    #   webm —— 真正的视频文件，播放器、剪辑软件、浏览器都认
+    #   webp —— 动画 WebP，本质是"会动的图片"，体积小但很多软件当静态图处理
+    #   avi  —— 兼容性最广，文件最大
+    "video_format": "webm",
     # ---- 后端监听：只绑回环 ----
     "host": "127.0.0.1",
     "port": 8787,

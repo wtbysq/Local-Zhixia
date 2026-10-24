@@ -72,7 +72,7 @@ README = """本地智匣
   config.json        端口、上下文、采样参数、快照密度（直接改这个）
   data\\              运行后自动生成：
     data\\图片\\       生成的图片（.png），每张旁边有同名 .json 记录参数
-    data\\视频\\       生成的视频（.webp 动图）
+    data\\视频\\       生成的视频（.webm，容器可用 config.json 的 video_format 改）
     data\\app.db       会话与消息
   _internal\\        程序本体：Python 运行时、界面文件、推理引擎
     _internal\\runtime\\llama\\   语言引擎 llama-server
