@@ -24,11 +24,15 @@
       <button class="pickbtn" id="btnSelect" title="批量选择对话">选择</button>
     </div>
 
-    <div class="kinds" id="kindBar">
-      <button class="kind active" data-kind="all">全部<b id="kAll">0</b></button>
-      <button class="kind" data-kind="text">语言<b id="kText">0</b></button>
-      <button class="kind" data-kind="image">图片<b id="kImage">0</b></button>
-      <button class="kind" data-kind="video">视频<b id="kVideo">0</b></button>
+    <div class="modes" id="modeBar">
+      <button class="mode" data-mode="image" title="打开图片生成工作区">
+        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.2" y="3.2" width="11.6" height="9.6" rx="1.6" stroke="currentColor" stroke-width="1.3" fill="none"/><circle cx="6" cy="6.6" r="1.1" fill="currentColor"/><path d="M3.4 11.6l3.1-3 2.2 2.1 1.9-1.7 2 2.6" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        生图
+      </button>
+      <button class="mode" data-mode="video" title="打开视频生成工作区">
+        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3.6" width="8.4" height="8.8" rx="1.5" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M10.8 7l3.2-1.8v5.6L10.8 9z" fill="currentColor"/></svg>
+        生视频
+      </button>
     </div>
 
     <div class="batchbar" id="batchBar" hidden>

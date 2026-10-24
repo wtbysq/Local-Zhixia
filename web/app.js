@@ -17,9 +17,8 @@
     health: null,
     selectMode: false,
     selected: {},
-    kind: "all",            // 左侧筛选：all / text / image / video
-    kindOf: {},             // 模型 id → 类型，用于给会话打标签
-    mode: "chat",           // chat | generate（图片/视频走独立工作区）
+    kindOf: {},             // 模型 id → 类型，用于下拉分组与会话角标
+    mode: "chat",           // 工作区：chat / image / video（后端仍按 generate 区分）
     generating: false,
     genAbort: null,
     generated: [],          // 当前分类下的生成产物
@@ -334,13 +333,9 @@
   function renderSessions() {
     var box = $("slist");
     box.innerHTML = "";
-    var list = state.sessions.filter(function (s) {
-      if (state.kind === "all") return true;
-      return (state.kindOf[s.model] || "text") === state.kind;
-    });
+    var list = state.sessions;
     if (!list.length) {
-      box.innerHTML = '<div style="padding:10px 9px;font-size:12px;color:#98a0aa">' +
-        (state.kind === "all" ? "还没有会话" : "该分类下还没有会话") + "</div>";
+      box.innerHTML = '<div style="padding:10px 9px;font-size:12px;color:#98a0aa">还没有会话</div>';
       return;
     }
     list.forEach(function (s) {
@@ -385,44 +380,44 @@
     });
   }
 
-  /* ---------------- 类型筛选 ---------------- */
+  /* ---------------- 工作区切换：对话 / 生图 / 生视频 ---------------- */
 
-  function sessionKind(s) {
-    return state.kindOf[s.model] || "text";
-  }
-
-  function updateKindCounts() {
-    var c = { all: state.sessions.length, text: 0, image: 0, video: 0 };
-    state.sessions.forEach(function (s) {
-      var k = sessionKind(s);
-      c[k] = (c[k] || 0) + 1;
-    });
-    $("kAll").textContent = c.all;
-    $("kText").textContent = c.text;
-    $("kImage").textContent = c.image;
-    $("kVideo").textContent = c.video;
-    Array.prototype.forEach.call(document.querySelectorAll("#kindBar .kind"), function (b) {
-      b.classList.toggle("active", b.getAttribute("data-kind") === state.kind);
+  function updateModeButtons() {
+    Array.prototype.forEach.call(document.querySelectorAll("#modeBar .mode"), function (b) {
+      b.classList.toggle("active", b.getAttribute("data-mode") === state.mode);
     });
   }
 
-  function setKind(k) {
-    state.kind = k;
-    updateKindCounts();
-    renderSessions();
+  function setMode(m) {
+    if (state.mode === m) return;
+    // 正在出字或出图时不允许切走，否则两套工作区会互相抢状态
+    if (state.streaming || state.generating) return;
+    state.mode = m;
     applyMode();
   }
 
-  /* ---------------- 对话 / 生成 两种工作区 ---------------- */
-
   function genKind() {
-    return (state.kind === "image" || state.kind === "video") ? state.kind : null;
+    return state.mode === "chat" ? null : state.mode;
+  }
+
+  // 顶部模型角标永远跟着下拉走，避免出现"角标写着 A、下拉其实是 B"的错位
+  function updateModelTag() {
+    $("modelTag").textContent = $("pModel").value || "—";
+  }
+
+  // 标题跟着工作区走：生成区显示「图片生成/视频生成」，对话区显示会话名
+  function updateHeader() {
+    if (state.mode === "chat") {
+      $("sessTitle").textContent = (state.current && state.current.title) || "新对话";
+    } else {
+      $("sessTitle").textContent = state.mode === "video" ? "视频生成" : "图片生成";
+    }
+    updateModelTag();
   }
 
   function applyMode() {
     var gk = genKind();
     var gen = !!gk;
-    state.mode = gen ? "generate" : "chat";
     document.body.classList.toggle("gen-mode", gen);
 
     streamEl.hidden = gen;
@@ -434,25 +429,27 @@
     $("videoOnly").hidden = gk !== "video";
 
     if (gen) {
-      $("sessTitle").textContent = gk === "video" ? "视频生成" : "图片生成";
       $("input").placeholder = gk === "video"
         ? "描述画面与动作，例如：一只红狐在雪地里行走，电影感"
         : "描述你想要的画面，例如：雨夜的霓虹街道，赛博朋克";
       $("btnSend").textContent = "生成";
       $("hint").textContent = "Enter 生成 · Shift+Enter 换行";
-      fillModelsForKind(gk);
       loadGenerated();
     } else {
       $("input").placeholder = "输入消息，Enter 发送 / Shift+Enter 换行";
       $("btnSend").textContent = "发送";
       $("hint").textContent = "Enter 发送 · Shift+Enter 换行";
-      fillModels(state.models);
-      if (!state.current || !state.messages.length) showEmpty();
+      if (state.messages.length) renderMessages();
+      else showEmpty();
     }
+    // 下拉只列当前工作区的模型：聊天不会出现图片/视频模型，反之亦然
+    refreshModelSelect();
+    updateModeButtons();
+    updateHeader();
   }
 
-  // 生成模式下下拉只列该类型的模型，避免"选了文本模型却想生成图片"
-  function fillModelsForKind(kind) {
+  // 下拉永远只列"当前工作区能用"的模型：聊天只给语言模型，生图只给图片模型
+  function fillModelsForKind(kind, prefer) {
     var sel = $("pModel");
     var list = state.models.filter(function (m) { return (m.kind || "text") === kind; });
     var cur = sel.value;
@@ -460,7 +457,9 @@
     if (!list.length) {
       var o = document.createElement("option");
       o.value = "";
-      o.textContent = "（models/" + kind + " 下没有可用模型）";
+      o.textContent = kind === "text"
+        ? "（models/ 下没有语言模型）"
+        : "（models/" + kind + "/ 下没有可用模型）";
       sel.appendChild(o);
       sel.disabled = true;
       updateModelHint();
@@ -476,10 +475,15 @@
       op.textContent = bits.join(" · ");
       sel.appendChild(op);
     });
-    if (cur && list.some(function (m) { return m.id === cur; })) sel.value = cur;
-    else sel.value = list[0].id;
-    // 用模型自带的推荐参数预填，用户不用自己猜尺寸与步数
-    prefillGenParams(list.filter(function (m) { return m.id === sel.value; })[0]);
+    // 优先级：上次选中的 > 会话绑定的 > 该类型第一个
+    var pick = [cur, prefer].filter(function (id) {
+      return id && list.some(function (m) { return m.id === id; });
+    })[0] || list[0].id;
+    sel.value = pick;
+    if (kind !== "text") {
+      // 用模型自带的推荐参数预填，用户不用自己猜尺寸与步数
+      prefillGenParams(list.filter(function (m) { return m.id === pick; })[0]);
+    }
     updateModelHint();
   }
 
@@ -500,7 +504,7 @@
     var fps = Number($("gFps").value) || 16;
     var fr = Number($("gFrames").value) || 1;
     var bits = [];
-    if (state.kind === "video") {
+    if (state.mode === "video") {
       bits.push(fr + " 帧 ≈ " + (fr / fps).toFixed(1) + " 秒");
       bits.push("帧数越多越吃显存，8GB 建议 ≤ 17 帧");
     } else {
@@ -510,9 +514,9 @@
     $("sizeHint").textContent = bits.join(" · ");
   }
 
-  function bindKindBar() {
-    Array.prototype.forEach.call(document.querySelectorAll("#kindBar .kind"), function (b) {
-      b.addEventListener("click", function () { setKind(b.getAttribute("data-kind")); });
+  function bindModeBar() {
+    Array.prototype.forEach.call(document.querySelectorAll("#modeBar .mode"), function (b) {
+      b.addEventListener("click", function () { setMode(b.getAttribute("data-mode")); });
     });
   }
 
@@ -623,22 +627,6 @@
 
   function showEmpty() {
     inner = null;
-    if (state.kind === "image" || state.kind === "video") {
-      var what = state.kind === "image" ? "图片" : "视频";
-      streamEl.innerHTML = '<div class="empty" id="empty">' +
-        "<h1>" + what + "模型</h1>" +
-        "<p>分类已就位，但" + what + "生成引擎还没接入——现有的 llama.cpp 只能跑语言模型。" +
-        "把 " + what + "权重放进 models/" + (state.kind === "image" ? "image" : "video") +
-        "/ 并接入生成引擎后，这里会出现生成面板。</p>" +
-        '<div class="chips">' +
-        '<button class="chipbtn" data-kind-jump="text">先去用语言模型</button>' +
-        "</div></div>";
-      Array.prototype.forEach.call(streamEl.querySelectorAll("[data-kind-jump]"), function (b) {
-        b.addEventListener("click", function () { setKind(b.getAttribute("data-kind-jump")); });
-      });
-      renderGauge(0, state.params.ctx_max);
-      return;
-    }
     streamEl.innerHTML = '<div class="empty" id="empty">' +
       "<h1>开始一段本地对话</h1>" +
       "<p>模型跑在你这台机器上，请求不出网卡。上下文超过阈值时历史会被自动压缩成摘要，原始消息仍然完整保留。</p>" +
@@ -715,7 +703,6 @@
         if (!exist[id]) delete state.selected[id];
       });
       renderSessions();
-      updateKindCounts();
       if (state.selectMode) updateBatchBar();
     });
   }
@@ -724,9 +711,16 @@
     var base = state.defaults || DEFAULTS;
     var p = Object.assign({}, base, state.current ? state.current.params : {});
     state.params = p;
-    // 模型以会话为准（会话创建时绑定），参数里的 model 只对新会话有效
-    var bound = state.current && state.current.model;
-    $("pModel").value = bound || p.model || (state.models[0] && state.models[0].id) || "";
+    // 模型以会话为准（会话创建时绑定），参数里的 model 只对新会话有效。
+    // 但在生成工作区里，下拉代表的是生成模型，不能被会话绑定的语言模型覆盖。
+    var bound = state.mode === "chat" && state.current && state.current.model;
+    if (state.mode === "chat") {
+      // 会话绑定的模型可能已被删掉（缓存清理、换机器），这时回落到第一个可用模型，
+      // 免得下拉停在空值上、看起来像坏了
+      var want = bound || p.model || "";
+      var opts = Array.prototype.map.call($("pModel").options, function (o) { return o.value; });
+      $("pModel").value = (want && opts.indexOf(want) >= 0) ? want : (opts[0] || "");
+    }
     $("pCtx").value = String(p.ctx_max || 8192);
     $("pTemp").value = p.temperature != null ? p.temperature : 0.7;
     $("pTopP").value = p.top_p != null ? p.top_p : 0.9;
@@ -740,10 +734,10 @@
     if (state.health && state.health.snapshot_level) {
       $("pSnap").value = state.health.snapshot_level;
     }
-    setModelLock(!!(state.current && state.messages.length));
+    setModelLock(!!(state.mode === "chat" && state.current && state.messages.length));
     syncParamLabels();
     updateModelHint();
-    $("modelTag").textContent = bound || p.model || "默认模型";
+    updateModelTag();
   }
 
   // 会话已有消息 → 模型锁定。这是 Q2 的界面侧：看得到，也改不了。
@@ -755,13 +749,19 @@
   }
 
   function openSession(id) {
+    // 从生成工作区点回会话，意味着要回到对话：先把工作区切回来
+    if (state.mode !== "chat") {
+      state.mode = "chat";
+      applyMode();
+    }
     return api("/api/sessions/" + id + "/messages").then(function (d) {
       state.current = d.session;
       state.messages = d.messages || [];
-      $("sessTitle").textContent = d.session.title || "未命名";
+      updateHeader();
       applySessionParams();
       renderMessages();
       renderSessions();
+      refreshModelSelect();   // 会话绑定的模型可能已不存在，这里把下拉与角标对齐
       if (window.innerWidth <= 900) app.classList.remove("side-open");
     });
   }
@@ -776,9 +776,10 @@
     return api("/api/sessions", { method: "POST", body: body }).then(function (d) {
       state.current = d.session;
       state.messages = [];
-      $("sessTitle").textContent = d.session.title || "新对话";
+      updateHeader();
       applySessionParams();
       showEmpty();
+      refreshModelSelect();
       if (!silent) $("input").focus();
       return loadSessions();
     });
@@ -816,7 +817,7 @@
       steps: Number($("gSteps").value) || 20,
       cfg_scale: Number($("gCfg").value) || 7,
       seed: $("gSeed").value === "" ? null : Number($("gSeed").value),
-      frames: state.kind === "video" ? (Number($("gFrames").value) || 9) : 1,
+      frames: state.mode === "video" ? (Number($("gFrames").value) || 9) : 1,
       fps: Number($("gFps").value) || 16
     };
   }
@@ -827,7 +828,7 @@
     if (!prompt) { $("input").focus(); return; }
     var body = genCollect();
     if (!body.model) {
-      genNotice("models/" + state.kind + " 下没有可用模型，先把权重文件放进去");
+      genNotice("models/" + state.mode + " 下没有可用模型，先把权重文件放进去");
       return;
     }
     var entry = modelById(body.model);
@@ -877,7 +878,7 @@
     try {
       await fetch("/api/generate/stop", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: $("pModel").value, kind: state.kind })
+        body: JSON.stringify({ model: $("pModel").value, kind: state.mode })
       });
     } catch (e) { /* 忽略 */ }
     if (state.genAbort) state.genAbort.abort();
@@ -891,7 +892,7 @@
         '<div class="gstage"><span class="spin"></span><span class="gs-text">准备生成…</span></div>' +
         '<div class="gbar2"><i></i></div>' +
         '<div class="gsteps"><span class="gs-step">' + esc(body.width + "×" + body.height) +
-          (state.kind === "video" ? " · " + body.frames + " 帧" : "") + " · " + body.steps + " 步</span>" +
+          (state.mode === "video" ? " · " + body.frames + " 帧" : "") + " · " + body.steps + " 步</span>" +
           '<span class="gs-eta"></span></div>' +
         '<div class="gprompt" style="margin-top:8px">' + esc(prompt) + "</div>" +
       "</div>";
@@ -1066,7 +1067,7 @@
   }
 
   async function send() {
-    if (state.mode === "generate") return generateOnce();
+    if (state.mode !== "chat") return generateOnce();
     var input = $("input");
     var content = input.value.trim();
     if (!content || state.streaming) return;
@@ -1286,7 +1287,7 @@
 
     // 模型：对话模式下写回会话；生成模式下只换引擎加载的权重，不碰会话参数
     $("pModel").addEventListener("change", function () {
-      if (state.mode === "generate") {
+      if (state.mode !== "chat") {
         prefillGenParams(modelById($("pModel").value));
         updateModelHint();
         return;
@@ -1369,37 +1370,15 @@
     state.models = models;
     state.kindOf = {};
     models.forEach(function (m) { state.kindOf[m.id] = m.kind || "text"; });
+    refreshModelSelect();
+  }
 
-    var sel = $("pModel");
-    var cur = sel.value || state.params.model;
-    sel.innerHTML = "";
-    var groups = [["text", "语言模型"], ["image", "图片模型"], ["video", "视频模型"]];
-    groups.forEach(function (pair) {
-      var list = models.filter(function (m) { return (m.kind || "text") === pair[0]; });
-      if (!list.length) return;
-      var g = document.createElement("optgroup");
-      g.label = pair[1];
-      list.forEach(function (m) {
-        var o = document.createElement("option");
-        o.value = m.id;
-        var bits = [m.id];
-        if (m.quant) bits.push(m.quant);
-        if (m.size_gb) bits.push(m.size_gb.toFixed(1) + "GB");
-        o.textContent = bits.join(" · ");
-        if (m.fits === false) o.textContent += "（显存放不下）";
-        g.appendChild(o);
-      });
-      sel.appendChild(g);
-    });
-    if (state.mode === "generate") {
-      // 生成模式：下拉只保留当前类型的模型，别让用户选到文本模型
-      fillModelsForKind(genKind());
-    } else {
-      if (cur) sel.value = cur;
-      if (!sel.value && models[0]) sel.value = models[0].id;
-      updateModelHint();
-    }
-    updateKindCounts();
+  // 按当前工作区重建下拉：聊天 → 只有语言模型；生图/生视频 → 只有对应类型
+  function refreshModelSelect() {
+    var kind = state.mode === "chat" ? "text" : state.mode;
+    var prefer = (state.mode === "chat" && state.current && state.current.model) || "";
+    fillModelsForKind(kind, prefer);
+    updateModelTag();
   }
 
   // 选中模型的显存预估：让「装不下」在点发送之前就看得见
@@ -1508,15 +1487,16 @@
   function boot() {
     bindChips();
     bindPanel();
-    bindKindBar();
+    bindModeBar();
 
     $("btnSend").addEventListener("click", send);
     $("btnStop").addEventListener("click", function () {
-      if (state.mode === "generate") stopGenerate();
+      if (state.mode !== "chat") stopGenerate();
       else stop();
     });
     $("newChat").addEventListener("click", function () {
       setSelectMode(false);
+      setMode("chat");
       newChat();
     });
     $("btnSelect").addEventListener("click", function () {
@@ -1559,7 +1539,7 @@
     });
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") {
-        if (state.mode === "generate" && state.generating) stopGenerate();
+        if (state.mode !== "chat" && state.generating) stopGenerate();
         else if (state.streaming) stop();
         else if (state.selectMode) setSelectMode(false);
       }
@@ -1575,9 +1555,12 @@
         applySessionParams();
         showEmpty();
       }
-      applyMode();          // 按当前分类决定显示对话区还是生成区
+      applyMode();          // 按当前工作区决定显示对话区还是生成区
       syncGenLabels();
       updateSizeHint();
+      // 支持 ?mode=image / ?mode=video 直接进生成工作区，便于书签与调试
+      var want = new URLSearchParams(location.search).get("mode");
+      if (want === "image" || want === "video") setMode(want);
     });
   }
 
