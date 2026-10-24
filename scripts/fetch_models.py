@@ -29,21 +29,21 @@ OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 GB = 1024 ** 3
 
 JOBS = [
-    # 语言：9B，Q4_K_M 约 5.8 GB，8GB 卡刚好装得下（KV 只在这模型的 8/32 层增长）
-    {"name": "ornith", "repo": "ornith-ai/Ornith-1.5-9B-GGUF",
-     "file": "Ornith-1.5-9B-Q4_K_M.gguf", "dest": "models/Ornith-1.5-9B-Q4_K_M.gguf",
-     "size": 5780090816},
-
-    # 图片：Anima 2B（动漫向），三件套
-    {"name": "anima-diff", "repo": "circlestone-labs/Anima",
-     "file": "split_files/diffusion_models/anima-turbo-v1.1.safetensors",
-     "dest": "models/image/anima/anima-turbo-v1.1.safetensors", "size": 4180000000},
-    {"name": "anima-te", "repo": "circlestone-labs/Anima",
-     "file": "split_files/text_encoders/qwen_3_06b_base.safetensors",
-     "dest": "models/image/anima/qwen_3_06b_base.safetensors", "size": 1190000000},
-    {"name": "anima-vae", "repo": "circlestone-labs/Anima",
-     "file": "split_files/vae/qwen_image_vae.safetensors",
-     "dest": "models/image/anima/qwen_image_vae.safetensors", "size": 250000000},
+    # 视频：MiniMax-H3 音视频联合。本机 15 GB 内存 + 33 GB 页面文件，
+    # 用最小量化（Q2 去噪器 + Q2 文本编码器 + int8 VAE）才谈得上能跑；
+    # ComfyUI 那边能出低质量小视频，就是靠逐层卸载 + 小分辨率 + 124 帧起步。
+    {"name": "h3-diff", "repo": "unsloth/MiniMax-H3-GGUF",
+     "file": "minimax_h3_fl2va_pruned-Q2_K.gguf",
+     "dest": "models/video/minimax-h3/minimax_h3_fl2va_pruned-Q2_K.gguf", "size": 6720000000},
+    {"name": "h3-te", "repo": "unsloth/MiniMax-H3-GGUF",
+     "file": "qwen3vl_32b_minimax_h3-Q2_K_M.gguf",
+     "dest": "models/video/minimax-h3/qwen3vl_32b_minimax_h3-Q2_K_M.gguf", "size": 13100000000},
+    {"name": "h3-vae", "repo": "Comfy-Org/MiniMax-H3",
+     "file": "vae/minimax_h3_video_vae_int8_convrot.safetensors",
+     "dest": "models/video/minimax-h3/minimax_h3_video_vae_int8_convrot.safetensors", "size": 2810000000},
+    {"name": "h3-avae", "repo": "Comfy-Org/MiniMax-H3",
+     "file": "vae/minimax_h3_audio_vae_fp32.safetensors",
+     "dest": "models/video/minimax-h3/minimax_h3_audio_vae_fp32.safetensors", "size": 610000000},
 
     # 图片：Krea 2 Turbo int8 + Qwen3-VL 4B int8 + Qwen-Image VAE
     {"name": "krea2-diff", "repo": "Comfy-Org/Krea-2",
@@ -69,20 +69,6 @@ JOBS = [
      "file": "vae/qwen_image_2.1_vae_bf16.safetensors",
      "dest": "models/image/qwen-image-2.1/qwen_image_2.1_vae_bf16.safetensors",
      "size": 680000000},
-    # 视频：MiniMax-H3（音视频联合）。本机 15 GB 内存装不下这套 34.8 GB 权重，
-    # 下载只是先存着，换 48 GB 内存 / 24 GB 显存的机器才能跑。
-    {"name": "h3-diff", "repo": "unsloth/MiniMax-H3-GGUF",
-     "file": "minimax_h3_fl2va_pruned-Q4_K.gguf",
-     "dest": "models/video/minimax-h3/minimax_h3_fl2va_pruned-Q4_K.gguf", "size": 11420000000},
-    {"name": "h3-te", "repo": "unsloth/MiniMax-H3-GGUF",
-     "file": "qwen3vl_32b_minimax_h3-Q4_K_M.gguf",
-     "dest": "models/video/minimax-h3/qwen3vl_32b_minimax_h3-Q4_K_M.gguf", "size": 18220000000},
-    {"name": "h3-vae", "repo": "Comfy-Org/MiniMax-H3",
-     "file": "vae/minimax_h3_video_vae_fp16.safetensors",
-     "dest": "models/video/minimax-h3/minimax_h3_video_vae_fp16.safetensors", "size": 5210000000},
-    {"name": "h3-avae", "repo": "Comfy-Org/MiniMax-H3",
-     "file": "vae/minimax_h3_audio_vae_fp32.safetensors",
-     "dest": "models/video/minimax-h3/minimax_h3_audio_vae_fp32.safetensors", "size": 610000000},
 ]
 
 
@@ -92,23 +78,34 @@ def human(n):
     return "%.1f MB" % (n / 1024 ** 2)
 
 
+def remote_size(url):
+    """问服务器要真实长度。清单里的 size 只是估计值，差几 MB 就会让续传越界。"""
+    try:
+        req = urllib.request.Request(url, method="HEAD", headers=UA)
+        with OPENER.open(req, timeout=30) as r:
+            n = int(r.headers.get("Content-Length") or 0)
+            return n if n > 0 else 0
+    except Exception:
+        return 0
+
+
 def fetch(job):
     dest = os.path.join(ROOT, job["dest"])
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     part = dest + ".part"
-    want = job.get("size") or 0
+    url = BASE % (job["repo"], job["file"])
+    want = remote_size(url) or job.get("size") or 0
 
     if os.path.isfile(dest) and (not want or abs(os.path.getsize(dest) - want) < 1024 ** 2):
         print("[skip] %-12s 已存在 %s" % (job["name"], human(os.path.getsize(dest))), flush=True)
         return True
 
     have = os.path.getsize(part) if os.path.isfile(part) else 0
-    if want and have >= want - 1024 ** 2:
+    if want and have >= want:
         os.replace(part, dest)
-        print("[done] %-12s 续传完成 %s" % (job["name"], human(want)), flush=True)
+        print("[done] %-12s 续传完成 %s" % (job["name"], human(have)), flush=True)
         return True
 
-    url = BASE % (job["repo"], job["file"])
     for attempt in range(1, 7):
         try:
             headers = dict(UA)
@@ -137,12 +134,22 @@ def fetch(job):
                             print("       %-12s %5.1f%%  %s / %s  %.2f MB/s" % (
                                 job["name"], pct, human(got), human(total), sp), flush=True)
                             last = now
-            if total and os.path.getsize(part) < total - 1024 ** 2:
+            if total and os.path.getsize(part) < total:
                 raise IOError("长度不足（%d/%d）" % (os.path.getsize(part), total))
             os.replace(part, dest)
             print("[ok]   %-12s %s 用时 %.0fs" % (job["name"], human(os.path.getsize(dest)),
                                                  time.time() - t0), flush=True)
             return True
+        except urllib.error.HTTPError as exc:
+            have = os.path.getsize(part) if os.path.isfile(part) else 0
+            # 416 = 请求的区间已经越过文件末尾，说明续传起点 >= 实际长度，当作下完了
+            if exc.code == 416 and have:
+                os.replace(part, dest)
+                print("[ok]   %-12s 416 视为已完成 %s" % (job["name"], human(have)), flush=True)
+                return True
+            print("[retry %d] %-12s HTTP %s（已下 %s）" % (attempt, job["name"], exc.code,
+                                                         human(have)), flush=True)
+            time.sleep(3 * attempt)
         except Exception as exc:
             have = os.path.getsize(part) if os.path.isfile(part) else 0
             print("[retry %d] %-12s %s（已下 %s）" % (attempt, job["name"],

@@ -231,6 +231,29 @@ scripts/                 mock_llm.py、smoke.py（66 项断言）、build.py、d
 
 ---
 
+### 本机已部署的模型（8 个，均实测过）
+
+| 模型 | 类型 | 体积 | 实测 | 备注 |
+|---|---|---|---|---|
+| `Ornith-1.5-9B-Q4_K_M` | 语言 | 5.38 GB | 31.3 tok/s @8k，显存 6561 MiB | GGUF arch `qwen35`（Gated DeltaNet 混合栈），只有 9 层留 KV，所以 16k 也放得下 |
+| `Qwen3-8B-Q4_K_M` | 语言 | 4.68 GB | 28 tok/s | 老基线 |
+| `sd-v1-5-fp16` | 图片 | 1.99 GB | 512²/20 步 12 s | 快，质量一般 |
+| `anima`（Turbo v1.1） | 图片 | 5.24 GB | 512²/8 步 21–47 s | 2B 动漫向，Danbooru 标签吃得好 |
+| `krea2`（Turbo int8） | 图片 | 17.33 GB | 512²/8 步 **164 s** | 画质最好，13.5 GB 权重超显存，必须 offload |
+| `qwen-image-2.1`（Turbo int8） | 图片 | 16.10 GB | 512²/8 步 **110 s** | 支持 RGBA 透明图与图片编辑，同样要 offload |
+| `wan2.1-t2v-1.3b` | 视频 | 5.01 GB | 256²/9 帧/20 步 32 s | 老基线 |
+| `minimax-h3`（Q2_K） | 视频+音频 | 21.65 GB | 480×256/124 帧/4 步 **50.6 min** | 音视频联合生成，出 5.13 s 带音轨 WebM；画质粗糙，属于"能跑"级别 |
+
+三个超显存模型（`krea2` / `qwen-image-2.1` / `minimax-h3`）的 bundle.json 里都带：
+
+```json
+"extra_args": ["--offload-to-cpu", "--backend", "te=cpu,vae=cpu,diffusion=Vulkan0"]
+```
+
+**为什么必须这么写**：只加 `--offload-to-cpu` 时，13 GB 的文本编码器仍会被塞进 8 GB 显存，引擎直接 `device lost` 退出。把文本编码器与 VAE 显式钉在 CPU、只让去噪器上显卡，才稳定。换机器时按 `sd-cli --list-devices` 的实际设备名改这段。
+
+---
+
 ## 七、常见问题
 
 | 现象 | 原因 | 处理 |

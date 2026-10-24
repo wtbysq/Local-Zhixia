@@ -536,7 +536,16 @@ class Handler(BaseHTTPRequestHandler):
         self._sse("stage", {"stage": "preparing", "label": "准备生成",
                             "model": model_id, "kind": kind, "req": req})
 
+        last_stage = {"label": None}
+
         def on_event(ev):
+            # 开了 offload 之后，引擎每步都重新搬一遍权重，会重复报同一个阶段；
+            # 只把变化的阶段推给前端，否则进度条那边的文案一直在闪
+            if ev.get("type") == "stage":
+                lab = ev.get("label") or ev.get("stage")
+                if lab == last_stage["label"]:
+                    return
+                last_stage["label"] = lab
             self._sse(ev.get("type", "stage"), ev)
 
         started = time.time()
