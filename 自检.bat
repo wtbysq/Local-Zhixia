@@ -2,7 +2,7 @@
 chcp 936 >nul
 setlocal
 cd /d "%~dp0"
-title 本地模型工作台 · 自检
+title 本地智匣 · 自检
 
 where python >nul 2>nul
 if errorlevel 1 goto NOPY
