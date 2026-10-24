@@ -25,3 +25,6 @@ __pycache__/
 
 # 图标生成脚本的预览图
 /desktop/icon-preview.png
+
+# 本地发行包产物
+/release/
