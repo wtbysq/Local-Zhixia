@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>桌面化改造方案 · 从网页操控到桌面软件 v1.0</title>
+<style>
+:root{
+  --ink:#15181d; --ink2:#3b424d; --muted:#6b7480; --faint:#8d95a0;
+  --line:#e2e6ea; --line2:#eef1f3; --bg:#fbfbfa; --card:#ffffff;
+  --accent:#0f6b5c; --accent2:#0a4f44; --asoft:#e9f3f0; --aline:#bcdcd3;
+  --warn:#9a5b0b; --wsoft:#fdf4e5; --wline:#f0dcb8;
+  --danger:#a8342a; --dsoft:#fdeeec; --dline:#f3cfca;
+  --mono:"Cascadia Mono","JetBrains Mono",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif;
+  font-size:15px;line-height:1.78;letter-spacing:.005em}
+.wrap{max-width:1000px;margin:0 auto;padding:56px 32px 96px}
+p{margin:0 0 14px}
+a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--aline)}
+.hero{border-bottom:2px solid var(--ink);padding-bottom:26px;margin-bottom:34px}
+.kicker{font-size:12px;letter-spacing:.22em;color:var(--accent);font-weight:600;margin-bottom:14px}
+h1{font-size:34px;line-height:1.28;margin:0 0 16px;font-weight:700;letter-spacing:-.02em}
+.sub{font-size:16px;color:var(--ink2);max-width:800px;margin-bottom:20px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:12.5px;padding:4px 11px;border:1px solid var(--line);border-radius:999px;color:var(--ink2);background:var(--card)}
+.chip b{font-weight:600;color:var(--ink)}
+.toc{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:22px 26px;margin-bottom:46px}
+.toc h4{margin:0 0 14px;font-size:12px;letter-spacing:.18em;color:var(--muted);font-weight:600}
+.toc ol{margin:0;padding-left:0;list-style:none;columns:2;column-gap:40px}
+.toc li{margin-bottom:7px;font-size:14px;break-inside:avoid}
+.toc li span{display:inline-block;width:26px;color:var(--faint);font-variant-numeric:tabular-nums;font-size:12.5px}
+h2{font-size:23px;margin:54px 0 8px;font-weight:700;letter-spacing:-.01em;padding-top:8px}
+h2 .n{display:inline-block;min-width:38px;color:var(--accent);font-variant-numeric:tabular-nums}
+h2+.lead{color:var(--muted);font-size:14.5px;margin-bottom:22px}
+h3{font-size:17px;margin:34px 0 10px;font-weight:600}
+h4{font-size:14px;margin:20px 0 8px;font-weight:600;color:var(--ink2)}
+table{width:100%;border-collapse:collapse;margin:14px 0 22px;font-size:13.5px;line-height:1.62}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#f3f5f6;font-weight:600;color:var(--ink2);white-space:nowrap}
+tbody tr:nth-child(even) td{background:#fcfcfc}
+.tight td,.tight th{padding:7px 10px}
+code{font-family:var(--mono);font-size:12.8px;background:#f2f4f5;padding:1.5px 5px;border-radius:3px;color:#1d2b2f}
+pre{background:#f7f8f8;border:1px solid var(--line);border-radius:5px;padding:15px 17px;overflow-x:auto;font-size:12.5px;line-height:1.7;margin:14px 0 20px}
+pre code{background:none;padding:0;font-size:inherit}
+pre .c{color:#7c8792}
+.note{border-left:3px solid var(--accent);background:var(--asoft);padding:14px 18px;margin:18px 0 22px;border-radius:0 4px 4px 0;font-size:14px}
+.note.warn{border-left-color:var(--warn);background:var(--wsoft)}
+.note.danger{border-left-color:var(--danger);background:var(--dsoft)}
+.note p:last-child{margin-bottom:0}
+.note .tag{display:block;font-size:11.5px;letter-spacing:.14em;font-weight:600;margin-bottom:6px;color:var(--accent2)}
+.pos{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:0 5px 5px 0;padding:20px 24px;margin:22px 0 28px}
+.pos .big{font-size:19px;font-weight:700;line-height:1.5;margin:0 0 10px;letter-spacing:-.01em}
+.pos .big em{font-style:normal;color:var(--accent)}
+.pos p{margin:0;color:var(--ink2);font-size:14px}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:3px;vertical-align:1px;margin-right:6px}
+.keep{background:#e6f2ee;color:#0a4f44}
+.mod{background:#eef1f6;color:#3b4a63}
+.new{background:#f4f1ea;color:#6b5a2e}
+.drop{background:#fdeeec;color:#a8342a}
+.flow{border:1px solid var(--line);border-radius:6px;background:var(--card);padding:18px 20px;margin:18px 0 24px}
+.flow .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13.5px}
+.flow .box{border:1px solid var(--aline);background:var(--asoft);border-radius:5px;padding:7px 12px;color:var(--accent2);font-weight:600}
+.flow .box.gray{border-color:var(--line);background:#f6f7f7;color:var(--ink2);font-weight:500}
+.flow .arw{color:var(--faint)}
+.flow .cap{font-size:12px;color:var(--muted);margin-top:10px}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+  <div class="kicker">桌面化改造 · 总体方案</div>
+  <h1>保留全部核心逻辑，<br>只换一层「壳」</h1>
+  <p class="sub">后端、上下文引擎、模型适配器、前端界面一行不改地留用。要新增的只有一件事：一个本地窗口，把已有的 HTTP 服务装进去。</p>
+  <div class="chips">
+    <span class="chip"><b>推荐</b> pywebview + 系统 WebView2</span>
+    <span class="chip"><b>代价</b> 引入 1 个运行时依赖</span>
+    <span class="chip"><b>复用</b> 后端 100% / 前端 95%</span>
+    <span class="chip"><b>D0 地基</b> 已完成并验证</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h4>目录</h4>
+  <ol>
+    <li><span>1</span><a href="#s1">结论与环境事实核对</a></li>
+    <li><span>2</span><a href="#s2">四条路线对比与取舍</a></li>
+    <li><span>3</span><a href="#s3">目标架构：入口、承载、运行方式</a></li>
+    <li><span>4</span><a href="#s4">模块级调整清单</a></li>
+    <li><span>5</span><a href="#s5">实施步骤 D0–D4</a></li>
+    <li><span>6</span><a href="#s6">风险与对策</a></li>
+    <li><span>7</span><a href="#s7">需要你确认的四件事</a></li>
+  </ol>
+</div>
+
+<h2 id="s1"><span class="n">1</span>结论与环境事实核对</h2>
+<p class="lead">桌面化最容易踩的坑，是选了一个本机根本装不上的壳。所以先测，再定。</p>
+
+<div class="pos">
+  <p class="big">用 <em>pywebview</em> 当壳，把现有 HTTP 服务塞进同一个进程，窗口直接渲染现有的 <code>web/</code>。</p>
+  <p>它不是另一套技术栈，而是一个「把系统 WebView2 包成 Python 窗口」的薄库：约 1 MB 代码，没有 Node、没有 Rust、没有构建步骤。核心的 <code>server/</code> 仍然零第三方依赖，随时可以退回浏览器模式。</p>
+</div>
+
+<table class="tight">
+<thead><tr><th style="width:30%">核对项</th><th style="width:34%">实测结果</th><th>对方案的影响</th></tr></thead>
+<tbody>
+<tr><td>WebView2 运行时</td><td><b>已安装</b>，版本 156.0.4314.42（Win11 预装）</td><td>窗口能有 Chromium 内核，前端无需降级</td></tr>
+<tr><td>Edge 浏览器</td><td>156.0.4314.42</td><td>可作为 WebView2 缺失时的回退方案</td></tr>
+<tr><td>pywebview</td><td><b>6.2.1</b>，纯 Python 轮子可取</td><td>壳本身没有编译依赖</td></tr>
+<tr><td>pythonnet（Windows 后端）</td><td><b>3.2.1</b>，含 <code>cp311.cp312.cp313</code> 轮子</td><td>Python 3.13 可以直接用，不需要降版本</td></tr>
+<tr><td>PyInstaller</td><td><b>6.22.3</b>（win_amd64）</td><td>可打包成 exe</td></tr>
+<tr><td>PyPI 可达性</td><td>pypi.org 直连不稳定；<b>阿里云镜像可用</b>；清华源缺 pywebview</td><td>安装与未来重装都走阿里云源</td></tr>
+<tr><td>引擎运行时</td><td><code>runtime/llama</code> 1.0 GB，DLL 与 exe 同目录</td><td>决定打包只能 onedir，不能 onefile</td></tr>
+</tbody>
+</table>
+
+<div class="note">
+<span class="tag">诚实交代一个代价</span>
+<p>现在的程序是<b>零第三方依赖</b>——只用 Python 标准库，连 venv 都不需要。桌面化必然打破这一条：至少要多一个 pywebview（连同 pythonnet 约 10 MB），构建期还要 PyInstaller。</p>
+<p>所以方案里保留<b>双入口</b>：桌面壳坏了，<code>python server/main.py</code> 仍然能跑，浏览器照样用。核心的 <code>server/</code> 目录不引入任何第三方包，这条底线不破。</p>
+</div>
+
+<h2 id="s2"><span class="n">2</span>四条路线对比与取舍</h2>
+<p class="lead">判断标准不是「谁更流行」，而是「在我们已有的东西上，谁需要重写得更少」。</p>
+
+<table>
+<thead><tr><th style="width:17%">路线</th><th style="width:20%">它是什么</th><th style="width:27%">能复用什么</th><th style="width:20%">要付什么代价</th><th>结论</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>pywebview</b><br><span style="color:var(--accent);font-size:12px">推荐</span></td>
+  <td>Python 薄壳，调用系统 WebView2 开窗口</td>
+  <td><b>后端 100%、前端 95%</b>；新增约 150 行启动代码</td>
+  <td>1 个运行时依赖；打包需 PyInstaller；pythonnet 偶有版本兼容问题</td>
+  <td><b style="color:var(--ok)">✅ 改得最少</b></td>
+</tr>
+<tr>
+  <td>Tauri</td>
+  <td>Rust 壳 + 系统 WebView2，前端仍是网页</td>
+  <td>前端可复用；后端要作为 sidecar 打包</td>
+  <td>装 Rust + Node 工具链；Python 后端要额外打一次包再被 Rust 调用，<b>变成两层打包</b></td>
+  <td>△ 体积最小，但工程复杂度翻倍</td>
+</tr>
+<tr>
+  <td>Electron</td>
+  <td>自带 Chromium 的桌面运行时</td>
+  <td>前端可复用；后端仍需 sidecar</td>
+  <td>+150 MB 起；Node 工具链；同样两层打包</td>
+  <td>❌ 与「依赖少」冲突</td>
+</tr>
+<tr>
+  <td>原生 GUI<br><span style="font-size:12px;color:var(--muted)">PySide6 / tkinter</span></td>
+  <td>用控件库重画界面</td>
+  <td>只能复用后端</td>
+  <td><b>现有 1000+ 行前端全部作废</b>，Markdown 渲染、流式追加、代码高亮都要重写</td>
+  <td>❌ 投入产出比最差</td>
+</tr>
+</tbody>
+</table>
+
+<div class="note warn">
+<span class="tag">为什么不选 Tauri（它确实更"现代"）</span>
+<p>Tauri 的优秀建立在「前端是唯一产物」这个前提上。我们的重头戏是 Python 侧：模型适配器、进程托管、SQLite、上下文引擎。用 Tauri 就得把 Python 打成 sidecar，再被 Rust 拉起来——<b>原本一个进程能解决的事，变成两个打包产物、两套日志、两处崩溃</b>。</p>
+<p>等哪天要发布给别人、需要自动更新和安装包时，再考虑 Tauri 也不迟。那时候换壳只影响 <code>app.py</code> 一个文件。</p>
+</div>
+
+<h2 id="s3"><span class="n">3</span>目标架构：入口、承载、运行方式</h2>
+
+<h3>3.1 进程结构</h3>
+<div class="flow">
+  <div class="row">
+    <span class="box">桌面主进程<br><span style="font-weight:400;font-size:12px">app.py</span></span>
+    <span class="arw">→ 启动 →</span>
+    <span class="box">HTTP 线程<br><span style="font-weight:400;font-size:12px">127.0.0.1:临时端口</span></span>
+    <span class="arw">→ 拉起 →</span>
+    <span class="box">llama-server 子进程<br><span style="font-weight:400;font-size:12px">127.0.0.1:8090</span></span>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <span class="box gray">WebView2 窗口<br><span style="font-size:12px">加载 web/ 静态页</span></span>
+    <span class="arw">⇄ fetch / SSE ⇄</span>
+    <span class="box gray">SQLite<br><span style="font-size:12px">data/app.db</span></span>
+    <span class="arw">⇄ 流式读取 ⇄</span>
+    <span class="box gray">GGUF<br><span style="font-size:12px">models/</span></span>
+  </div>
+  <p class="cap">窗口与 HTTP 服务在同一个进程里，只有引擎是子进程。关窗口即回收全部资源。</p>
+</div>
+
+<h3>3.2 三个必须明确的定义</h3>
+<table>
+<thead><tr><th style="width:16%">维度</th><th>定义</th></tr></thead>
+<tbody>
+<tr><td><b>入口方式</b></td><td>双击 <code>本地模型工作台.exe</code>。启动顺序：单实例检查 → 准备数据目录 → 后台线程起 HTTP（<b>端口交给系统分配</b>，不再固定 8787）→ 轮询 <code>/api/health</code> 就绪 → 开窗加载 <code>http://127.0.0.1:{实际端口}</code>。任一步失败弹原生对话框说明原因，而不是白屏。</td></tr>
+<tr><td><b>界面承载</b></td><td>系统 WebView2（Chromium 内核）渲染<b>现有的 <code>web/</code></b>。不做前端重写，只改 3 处桌面适配：外链交给系统浏览器、导出改用原生保存对话框、可选的无边框标题栏拖拽。</td></tr>
+<tr><td><b>本地运行方式</b></td><td>全部在本机：HTTP 只绑 <code>127.0.0.1</code>（回环，不触发防火墙提示）；模型与数据库都在本地磁盘；无遥测、无联网检查。窗口关闭 → 停 HTTP → 停引擎 → 进程退出，不残留。</td></tr>
+</tbody>
+</table>
+
+<h3>3.3 端口为什么要改成动态分配</h3>
+<p>网页版固定用 8787，是因为你要在浏览器地址栏里记住它。桌面版没有这个需求，反而有三个坏处：一是和网页版同时开会抢端口；二是端口被别的程序占用时启动失败；三是固定端口更容易被本机其它程序探测。</p>
+<p>改法很小：<code>start_in_thread(port=0)</code> 让系统分配，窗口用返回的实际端口。网页版仍然读 <code>config.json</code> 的 <code>port</code>，行为不变。</p>
+
+<h2 id="s4"><span class="n">4</span>模块级调整清单</h2>
+<p class="lead">这是本次改造唯一需要逐项确认的部分。四个标签：复用 / 改造 / 新增 / 替换。</p>
+
+<table>
+<thead><tr><th style="width:26%">文件</th><th style="width:10%">处理</th><th>具体改动</th></tr></thead>
+<tbody>
+<tr><td><code>server/adapters/*</code><br><code>context.py</code> <code>models.py</code><br><code>snapshot.py</code> <code>store.py</code> <code>tokens.py</code></td><td><span class="pill keep">复用</span></td><td><b>一行不改。</b>它们与「谁显示界面」无关——这正是前面做适配器分层换来的红利</td></tr>
+<tr><td><code>server/main.py</code></td><td><span class="pill mod">改造</span></td><td>已抽出 <code>create_server()</code> / <code>start_in_thread()</code> / <code>shutdown()</code>（D0 已完成）。命令行 <code>main()</code> 行为不变</td></tr>
+<tr><td><code>server/config.py</code></td><td><span class="pill mod">改造</span></td><td>新增 <code>BASE_DIR</code> 判定：打包后取 <b>exe 所在目录</b>（不是 <code>sys._MEIPASS</code>），否则 <code>runtime/</code> 与 <code>models/</code> 会指向临时解压目录而找不到模型</td></tr>
+<tr><td><code>web/index.html</code> <code>app.css</code></td><td><span class="pill keep">复用</span></td><td>仅当选择无边框窗口时加拖拽区与窗口按钮，否则零改动</td></tr>
+<tr><td><code>web/app.js</code></td><td><span class="pill mod">改造</span></td><td>三处：① <code>target=_blank</code> 的链接改调 <code>open_external(url)</code>；② 「导出」由 <code>window.open</code> 改为 <code>save_export(session_id)</code> 走原生保存框；③ 启动时向壳查询窗口模式（可选）</td></tr>
+<tr><td><code>app.py</code><br><span style="font-size:12px;color:var(--muted)">新增，约 150 行</span></td><td><span class="pill new">新增</span></td><td>桌面入口：单实例锁、数据目录准备、HTTP 线程、等就绪、开窗、注册 JS API、<code>on_closing</code> 回收</td></tr>
+<tr><td><code>desktop/spec</code> <code>icon.ico</code></td><td><span class="pill new">新增</span></td><td>PyInstaller 配置（含 <code>web/</code>、<code>runtime/</code> 的 datas）与图标</td></tr>
+<tr><td><code>启动.bat</code></td><td><span class="pill drop">替换</span></td><td>由 exe 取代；保留一份 <code>浏览器模式.bat</code> 作为回退入口</td></tr>
+<tr><td><code>scripts/doctor.py</code></td><td><span class="pill mod">改造</span></td><td>增加三项检查：WebView2 是否存在、单实例锁状态、打包后的路径解析是否正确</td></tr>
+<tr><td><code>requirements.txt</code></td><td><span class="pill mod">改造</span></td><td>从「零依赖」改为两条：运行时 <code>pywebview</code>，构建期 <code>pyinstaller</code></td></tr>
+</tbody>
+</table>
+
+<div class="note">
+<span class="tag">一句话总结改动面</span>
+<p><b>核心逻辑零改动，界面三处适配，新增一个入口文件。</b>真正的工作量在打包与边界处理（单实例、关窗回收、路径），不在功能重写。</p>
+</div>
+
+<h2 id="s5"><span class="n">5</span>实施步骤 D0–D4</h2>
+<p class="lead">每一阶段结束时都必须有一个「看得见、能验收」的东西。</p>
+
+<table>
+<thead><tr><th style="width:8%">阶段</th><th style="width:34%">动作</th><th>可验证产出</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>D0</b><br><span style="font-size:11px;color:var(--ok);font-weight:600">已完成</span></td>
+  <td>服务改为可嵌入：<code>create_server()</code> / <code>start_in_thread()</code> / <code>shutdown()</code>；命令行入口行为不变</td>
+  <td>进程内启动 → 返回实际端口 25126 → <code>/api/health</code> 200 → 关闭后端口释放。<b>已实测通过</b></td>
+</tr>
+<tr>
+  <td><b>D1</b></td>
+  <td>装 pywebview（阿里云源）；写 <code>app.py</code>：单实例 → 起线程 → 等就绪 → 开窗 → 关窗回收</td>
+  <td>双击能出窗口；窗口里能完成一次真实对话；关窗后 <code>nvidia-smi</code> 显存回落、8090 端口释放</td>
+</tr>
+<tr>
+  <td><b>D2</b></td>
+  <td>桌面细节：外部链接交系统浏览器、导出走原生保存框、窗口大小/位置记忆、第二个实例唤起已有窗口、启动失败弹原生错误框</td>
+  <td>逐项手测清单全部通过；导出文件能选择路径并落盘</td>
+</tr>
+<tr>
+  <td><b>D3</b></td>
+  <td>PyInstaller <b>onedir</b> 打包；<code>BASE_DIR</code> 改为 exe 目录；图标与版本信息</td>
+  <td>在另一个 Windows 用户账户下解压即用（不依赖本机 Python 环境）</td>
+</tr>
+<tr>
+  <td><b>D4</b></td>
+  <td>收尾：<code>doctor.py</code> 增加桌面检查；<code>浏览器模式.bat</code> 保留；README 两套启动方式并列</td>
+  <td>换机器后 <code>自检.exe</code> 能指出「WebView2 缺失」这类问题并给修复动作</td>
+</tr>
+</tbody>
+</table>
+
+<h3>打包形态的硬约束</h3>
+<p>引擎运行时是 <b>1.0 GB</b>（<code>llama-server.exe</code> + 20 多个 DLL + CUDA 库）。这直接排除 <code>onefile</code>：单文件模式每次启动都要把这 1 GB 解压到临时目录，冷启动会从 3 秒变成几十秒，还会在 <code>%TEMP%</code> 留下副本。</p>
+<p>所以发布形态是 <b>onedir 文件夹</b>：一个目录、一个 exe、旁边是 <code>runtime/</code> <code>web/</code> <code>models/</code>。压缩后约 400 MB（引擎 DLL 压缩率高），解压即用，不需要安装程序。</p>
+
+<h2 id="s6"><span class="n">6</span>风险与对策</h2>
+<p class="lead">按「会不会挡住交付」排序，不是按发生概率。</p>
+
+<table>
+<thead><tr><th style="width:26%">风险</th><th style="width:24%">表现</th><th>对策</th></tr></thead>
+<tbody>
+<tr><td><b>WebView2 缺失</b><br><span style="font-size:12px;color:var(--muted)">老 Win10 或精简系统</span></td><td>窗口白屏或创建失败</td><td>启动时读注册表/目录探测；缺失则弹框给出安装指引，并<b>自动回退到系统浏览器打开</b>，功能不中断</td></tr>
+<tr><td><b>pythonnet 运行时异常</b></td><td><code>import clr</code> 失败，窗口起不来</td><td>D1 第一件事就验证；失败则退回「Edge <code>--app</code> 模式」（无边框浏览器窗口，观感接近但仍算独立窗口）</td></tr>
+<tr><td><b>打包后路径错乱</b></td><td>启动即报找不到模型 / 找不到 web</td><td>统一 <code>BASE_DIR</code> = exe 目录；禁止使用 <code>sys._MEIPASS</code> 解析 <code>runtime/</code>、<code>models/</code>；D3 用干净账户验证</td></tr>
+<tr><td><b>1 GB 运行时</b></td><td>包体大、传输慢</td><td>onedir + zip；不做 onefile；引擎目录单独一层，升级引擎不必重打整个包</td></tr>
+<tr><td><b>杀软误报</b><br><span style="font-size:12px;color:var(--muted)">PyInstaller 常见</span></td><td>exe 被拦或删</td><td>提供两条路：正常 exe；以及「便携脚本版」（python + 源码 + 快捷方式），后者不触发误报</td></tr>
+<tr><td><b>多实例抢资源</b></td><td>两个窗口各起一个引擎，8 GB 显存直接爆</td><td>启动前用命名互斥量/锁文件判定，已有实例则唤起原窗口并退出</td></tr>
+<tr><td><b>关窗后引擎残留</b></td><td>显存不释放，下次启动 8090 被占</td><td><code>on_closing</code> 显式 <code>stop_engine()</code>；启动时读 PID 文件清理上次的孤儿进程</td></tr>
+<tr><td><b>数据目录不可写</b></td><td>装在 Program Files 时无法写库</td><td>数据默认放 exe 旁（便携）；若检测到不可写，自动迁到 <code>%LOCALAPPDATA%</code> 并在界面提示</td></tr>
+<tr><td><b>导出/外链失效</b></td><td>点导出没反应，点链接把应用变成浏览器</td><td>用 pywebview 的 JS API 接管：导出弹原生保存框，外链交 <code>os.startfile</code></td></tr>
+</tbody>
+</table>
+
+<div class="note danger">
+<span class="tag">最需要提前接受的一条</span>
+<p>桌面化之后，<b>「改一行代码就能用」的便利会下降</b>：调试从「刷新浏览器」变成「重启窗口」，改前端后还要重新打包才生效。</p>
+<p>缓解办法是双入口长期保留：开发时用 <code>python server/main.py</code> + 浏览器（改完刷新即见），交付时才用 exe。<b>不要把浏览器模式当成过渡产物删掉。</b></p>
+</div>
+
+<h2 id="s7"><span class="n">7</span>需要你确认的四件事</h2>
+<p class="lead">前两项决定要不要开工，后两项决定做出来长什么样。</p>
+
+<table>
+<thead><tr><th style="width:6%">#</th><th style="width:26%">问题</th><th>选项与影响</th></tr></thead>
+<tbody>
+<tr><td><b>Q1</b></td><td>壳方案</td><td>① pywebview（推荐，改动最少）　② Tauri（体积最小，但 Python 要打 sidecar）　③ Electron（+150 MB）　④ 不做壳，用 Edge <code>--app</code> 快捷方式（零依赖，但仍是浏览器窗口）</td></tr>
+<tr><td><b>Q2</b></td><td>发布形态</td><td>① onedir 文件夹 + zip（推荐）　② onefile 单 exe（1 GB 每次解压，慢）　③ 加装安装程序（需再引入 Inno Setup）</td></tr>
+<tr><td><b>Q3</b></td><td>窗口外观</td><td>① 系统原生边框（零成本，最稳）　② 无边框自绘标题栏（更像现代桌面软件，多约 80 行 CSS/JS 与拖拽逻辑）</td></tr>
+<tr><td><b>Q4</b></td><td>数据目录</td><td>① exe 旁（便携，拷走即迁移）　② <code>%LOCALAPPDATA%</code>（符合 Windows 规范，避开权限问题）</td></tr>
+</tbody>
+</table>
+
+<footer>
+桌面化改造方案 v1.0 &nbsp;|&nbsp; 单文件、无外部依赖，断网可读 &nbsp;|&nbsp; 2026-10-23
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+{
+  "_说明": "本文件是唯一需要手改的地方。改完重启 python server/main.py 生效。",
+
+  "_adapter说明": "默认执行适配器：llamacpp（本程序拉起 llama-server 进程）或 openai（接任意已在运行的兼容端点）",
+  "adapter": "llamacpp",
+
+  "_bykind说明": "按模态分派执行器。语言模型走 llama.cpp，图片/视频走 stable-diffusion.cpp。两者共享显存，生成前会自动卸载语言引擎。",
+  "adapters_by_kind": {
+    "text": "llamacpp",
+    "image": "sdcpp",
+    "video": "sdcpp"
+  },
+
+  "adapters": {
+    "llamacpp": {
+      "_binary说明": "llama-server 可执行文件。运行时已拷进项目内，不再依赖任何外部安装。",
+      "binary": "runtime\\llama\\llama-server.exe",
+      "_vendor说明": "留空则自动在 binary 同级的 vendor 目录里找 CUDA 运行库；找不到时手动填。",
+      "vendor_dir": "",
+      "host": "127.0.0.1",
+      "port": 8090,
+      "gpu_layers": 99,
+      "flash_attn": "on",
+      "_kv说明": "KV 缓存精度。q8_0 最平衡；显存吃紧改 q4_0；f16 最准但费一倍。",
+      "kv_cache": "q8_0",
+      "parallel": 1,
+      "jinja": true,
+      "start_timeout": 180,
+      "_thinking说明": "Qwen3 等模型默认会先输出思考过程，正文会变空。这里默认关闭；界面可逐次打开。",
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      },
+      "extra_args": []
+    },
+    "sdcpp": {
+      "_说明": "stable-diffusion.cpp，单二进制、吃 GGUF，图片与视频共用。CLI 模式：每次生成一个进程，退出即归还显存。",
+      "binary": "runtime\\sdcpp\\sd-cli.exe",
+      "_backend说明": "留空交给引擎 auto-fit 自动规划设备。显式写如 te=cpu,diffusion=Vulkan0,vae=Vulkan0 可强制分配。",
+      "backend": "",
+      "_params说明": "权重存放位置。留空由 auto-fit 决定（内存不够时会放磁盘，代价是每次重读）。",
+      "params_backend": "",
+      "_autofit说明": "保留为 true。关掉后引擎不会自动做显存规划，容易直接 OOM。",
+      "auto_fit": true,
+      "extra_args": []
+    },
+    "openai": {
+      "_说明": "外部兼容端点。用于接别的服务、别的机器，或测试替身。本程序不负责启动它。",
+      "base": "http://127.0.0.1:8080/v1",
+      "default_model": ""
+    }
+  },
+
+  "models_dir": "models",
+  "_vram说明": "权重与 KV 之外的固定开销（CUDA 上下文 + 计算缓冲 + 桌面合成）。本机实测 1700 MiB。",
+  "vram_overhead_mb": 1700,
+
+  "host": "127.0.0.1",
+  "port": 8787,
+
+  "_ctx说明": "8k 是 8GB 显存的稳妥档（实测 7070 MiB）。16k 实测 7646 MiB 只剩 500 MiB，属于临界；32k 必然溢出，硬上限挡住。",
+  "ctx_max": 8192,
+  "ctx_ceiling": 16384,
+
+  "max_tokens": 1024,
+  "safety_margin": 256,
+
+  "compact_enabled": true,
+  "trigger_ratio": 0.75,
+  "target_ratio": 0.45,
+  "keep_recent_turns": 4,
+  "min_turns": 3,
+  "max_batch_turns": 12,
+  "summary_cap": 600,
+  "summary_timeout": 20,
+
+  "temperature": 0.7,
+  "top_p": 0.9,
+  "top_k": 40,
+  "repeat_penalty": 1.05,
+
+  "_snapshot说明": "快照密度：off 不写 / basic 只记参数与耗时 / full 额外存完整消息序列，可重放。",
+  "snapshot": {
+    "level": "basic"
+  },
+
+  "log_requests": true,
+  "engine_log": "logs/engine.log"
+}

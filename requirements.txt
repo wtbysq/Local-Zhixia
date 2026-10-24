@@ -1,0 +1,8 @@
+# 本程序零第三方依赖：只用 Python 3.9+ 标准库
+#   http.server / socketserver  → HTTP 与 SSE
+#   http.client                 → 流式读引擎响应
+#   sqlite3                     → 会话与消息
+#   json / struct / urllib      → 配置、GGUF 解析、健康检查
+#
+# 所以这里没有需要 pip install 的包，也不需要 venv。
+# 整个目录（含 runtime/ 与 models/）可以直接拷到同架构的机器上跑。

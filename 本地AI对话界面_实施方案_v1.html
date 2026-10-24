@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本地 AI 对话与调试界面 · 实施方案 v1.0</title>
+<style>
+:root{
+  --ink:#15181d; --ink2:#3b424d; --muted:#6b7480; --faint:#8d95a0;
+  --line:#e2e6ea; --line2:#eef1f3; --bg:#fbfbfa; --card:#ffffff;
+  --accent:#0f6b5c; --accent2:#0a4f44; --asoft:#e9f3f0; --aline:#bcdcd3;
+  --warn:#9a5b0b; --wsoft:#fdf4e5; --wline:#f0dcb8;
+  --danger:#a8342a; --dsoft:#fdeeec; --dline:#f3cfca;
+  --ok:#0f6b5c;
+  --mono:"Cascadia Mono","JetBrains Mono",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif;
+  font-size:15px; line-height:1.78; letter-spacing:.005em;
+}
+.wrap{max-width:1000px; margin:0 auto; padding:56px 32px 96px}
+p{margin:0 0 14px}
+a{color:var(--accent); text-decoration:none; border-bottom:1px solid var(--aline)}
+a:hover{border-bottom-color:var(--accent)}
+
+/* hero */
+.hero{border-bottom:2px solid var(--ink); padding-bottom:26px; margin-bottom:34px}
+.kicker{font-size:12px; letter-spacing:.22em; color:var(--accent); font-weight:600; margin-bottom:14px}
+h1{font-size:34px; line-height:1.28; margin:0 0 16px; font-weight:700; letter-spacing:-.02em}
+.sub{font-size:16px; color:var(--ink2); max-width:760px; margin-bottom:20px}
+.chips{display:flex; flex-wrap:wrap; gap:8px}
+.chip{font-size:12.5px; padding:4px 11px; border:1px solid var(--line); border-radius:999px; color:var(--ink2); background:var(--card)}
+.chip b{font-weight:600; color:var(--ink)}
+
+/* toc */
+.toc{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:22px 26px; margin-bottom:46px}
+.toc h4{margin:0 0 14px; font-size:12px; letter-spacing:.18em; color:var(--muted); font-weight:600}
+.toc ol{margin:0; padding-left:0; list-style:none; columns:2; column-gap:40px}
+.toc li{margin-bottom:7px; font-size:14px; break-inside:avoid}
+.toc li span{display:inline-block; width:26px; color:var(--faint); font-variant-numeric:tabular-nums; font-size:12.5px}
+
+/* sections */
+h2{font-size:23px; margin:54px 0 8px; font-weight:700; letter-spacing:-.01em; padding-top:8px}
+h2 .n{display:inline-block; min-width:38px; color:var(--accent); font-variant-numeric:tabular-nums}
+h2+.lead{color:var(--muted); font-size:14.5px; margin-bottom:22px}
+h3{font-size:17px; margin:34px 0 10px; font-weight:600}
+h4{font-size:14px; margin:20px 0 8px; font-weight:600; color:var(--ink2)}
+hr{border:0; border-top:1px solid var(--line); margin:40px 0}
+
+/* tables */
+table{width:100%; border-collapse:collapse; margin:14px 0 22px; font-size:13.5px; line-height:1.62}
+th,td{border:1px solid var(--line); padding:9px 12px; text-align:left; vertical-align:top}
+th{background:#f3f5f6; font-weight:600; color:var(--ink2); white-space:nowrap}
+tbody tr:nth-child(even) td{background:#fcfcfc}
+td code,th code{font-size:12.5px}
+.tight td,.tight th{padding:7px 10px}
+.num{font-variant-numeric:tabular-nums; white-space:nowrap}
+
+/* code */
+code{font-family:var(--mono); font-size:13px; background:#f2f4f5; padding:1.5px 5px; border-radius:3px; color:#1d2b2f}
+pre{background:#f7f8f8; border:1px solid var(--line); border-radius:5px; padding:15px 17px; overflow-x:auto; font-size:12.5px; line-height:1.7; margin:14px 0 20px}
+pre code{background:none; padding:0; font-size:inherit}
+pre .c{color:#7c8792}
+pre .k{color:#0a4f44; font-weight:600}
+
+/* callouts */
+.note{border-left:3px solid var(--accent); background:var(--asoft); padding:14px 18px; margin:18px 0 22px; border-radius:0 4px 4px 0; font-size:14px}
+.note.warn{border-left-color:var(--warn); background:var(--wsoft)}
+.note.danger{border-left-color:var(--danger); background:var(--dsoft)}
+.note b{font-weight:600}
+.note p:last-child{margin-bottom:0}
+.note .tag{display:block; font-size:11.5px; letter-spacing:.14em; font-weight:600; margin-bottom:6px; color:var(--accent2)}
+.note.warn .tag{color:var(--warn)}
+.note.danger .tag{color:var(--danger)}
+
+/* kpi */
+.kpi{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:5px; overflow:hidden; margin:18px 0 24px}
+.kpi div{background:var(--card); padding:14px 15px}
+.kpi .lab{font-size:11.5px; color:var(--muted); letter-spacing:.06em; margin-bottom:5px}
+.kpi .val{font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; line-height:1.3}
+.kpi .val small{font-size:12px; font-weight:400; color:var(--muted); margin-left:3px}
+
+/* phase */
+.phase{background:var(--card); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:0 5px 5px 0; padding:20px 24px 18px; margin:16px 0}
+.phase.opt{border-left-color:var(--faint); border-style:solid solid solid solid; background:#fcfcfc}
+.ph{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:2px}
+.ph .pn{font-family:var(--mono); font-size:13px; font-weight:700; color:var(--card); background:var(--accent); padding:2px 9px; border-radius:3px; letter-spacing:.04em}
+.phase.opt .ph .pn{background:var(--faint)}
+.ph h3{margin:0; font-size:16.5px}
+.ph .pt{margin-left:auto; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; border:1px solid var(--line); padding:1px 9px; border-radius:999px}
+.goal{font-size:14px; color:var(--ink2); margin:8px 0 12px}
+.acts{margin:0 0 16px; padding-left:18px; font-size:13.8px; color:var(--ink2)}
+.acts li{margin-bottom:5px}
+.io{display:grid; grid-template-columns:1fr 1.25fr; gap:22px; border-top:1px dashed var(--line); padding-top:14px}
+.io h5{margin:0 0 7px; font-size:11.5px; letter-spacing:.14em; color:var(--muted); font-weight:600}
+.io ul{margin:0; padding-left:16px; font-size:13px; line-height:1.72}
+.io li{margin-bottom:3px}
+.io .ck li{list-style:none; position:relative; padding-left:0}
+.io .ck li::before{content:"✓"; color:var(--ok); font-weight:700; margin-right:6px; font-size:12px}
+.io ul.ck{padding-left:0}
+
+/* sev */
+.sev{display:inline-block; font-size:11.5px; padding:1px 7px; border-radius:3px; font-weight:600; white-space:nowrap}
+.s-h{background:var(--dsoft); color:var(--danger); border:1px solid var(--dline)}
+.s-m{background:var(--wsoft); color:var(--warn); border:1px solid var(--wline)}
+.s-l{background:#eef2f0; color:#4a5b56; border:1px solid #dde5e2}
+
+/* tree */
+pre.tree{background:#fbfbfa; border:1px solid var(--line); font-size:12.5px; line-height:1.75; color:#2b3138}
+pre.tree .cm{color:#8d95a0}
+
+/* footer */
+.foot{margin-top:64px; padding-top:22px; border-top:1px solid var(--line); font-size:12.5px; color:var(--faint); display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px}
+
+@media (max-width:760px){
+  .wrap{padding:32px 18px 64px}
+  h1{font-size:26px}
+  .kpi{grid-template-columns:repeat(2,1fr)}
+  .io{grid-template-columns:1fr; gap:14px}
+  .toc ol{columns:1}
+  table{font-size:12.5px}
+  th,td{padding:7px 9px}
+}
+@media print{
+  body{background:#fff}
+  .wrap{max-width:none; padding:0}
+  .phase,.note,.toc{break-inside:avoid}
+  h2{break-after:avoid}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+  <div class="kicker">实施方案 · LOCAL-FIRST · v1.0</div>
+  <h1>本地 AI 对话与调试界面<br>完整实施计划</h1>
+  <p class="sub">面向个人与小团队的完全离线部署方案。三层进程、四层职责、七个阶段，每个阶段都配有可直接执行的验收动作——做完一步就能确认这一步真的成了，而不是等全部写完才发现跑不起来。</p>
+  <div class="chips">
+    <span class="chip">目标机 <b>Windows 11 · RTX 4060 Laptop 8GB</b></span>
+    <span class="chip">形态 <b>本地 Web UI</b></span>
+    <span class="chip">依赖 <b>pip 3 个包 + 0 前端构建</b></span>
+    <span class="chip">网络 <b>全程 0 外联</b></span>
+  </div>
+</div>
+
+<div class="toc">
+  <h4>目录</h4>
+  <ol>
+    <li><span>0</span><a href="#s0">结论摘要：五个决策</a></li>
+    <li><span>1</span><a href="#s1">整体架构与职责划分</a></li>
+    <li><span>1.1</span><a href="#s11">进程拓扑与数据流</a></li>
+    <li><span>1.2</span><a href="#s12">四层职责边界</a></li>
+    <li><span>1.3</span><a href="#s13">推理服务接入方式选型</a></li>
+    <li><span>1.4</span><a href="#s14">接口约定（前后端契约）</a></li>
+    <li><span>2</span><a href="#s2">核心功能模块</a></li>
+    <li><span>2.1</span><a href="#s21">M1 模型与参数选择</a></li>
+    <li><span>2.2</span><a href="#s22">M2 对话输入与流式输出</a></li>
+    <li><span>2.3</span><a href="#s23">M3 历史会话与上下文控制</a></li>
+    <li><span>2.3.1</span><a href="#s231">自动压缩上下文机制</a></li>
+    <li><span>2.4</span><a href="#s24">M4 数据模型与目录结构</a></li>
+    <li><span>3</span><a href="#s3">分阶段实施（P0–P7）</a></li>
+    <li><span>4</span><a href="#s4">硬件与依赖要求</a></li>
+    <li><span>4.1</span><a href="#s41">本机实测与显存估算</a></li>
+    <li><span>4.2</span><a href="#s42">模型档位与操作系统兼容性</a></li>
+    <li><span>5</span><a href="#s5">风险点与备选方案</a></li>
+    <li><span>6</span><a href="#s6">需要你确认的关键问题</a></li>
+  </ol>
+</div>
+
+<!-- ============ 0 ============ -->
+<h2 id="s0"><span class="n">0</span>结论摘要：五个决策</h2>
+<p class="lead">先给结论。如果你的判断与这里不同，后面所有阶段的内容都会跟着变，所以这一节值得先读完。</p>
+
+<table>
+<thead><tr><th style="width:15%">决策项</th><th style="width:22%">选择</th><th>理由</th><th style="width:19%">什么情况下该改</th></tr></thead>
+<tbody>
+<tr><td><b>交付形态</b></td><td>本地 Web UI<br><span style="color:var(--muted)">浏览器访问 127.0.0.1</span></td><td>零安装、跨平台、改一行刷新生效，调试体验最好</td><td>要托盘常驻或单文件分发 → 套 Tauri 外壳</td></tr>
+<tr><td><b>后端</b></td><td>标准库 <code>http.server</code><br><span style="color:var(--muted)">原定 FastAPI，实施时降级</span></td><td>目标机 pip 源不可达，FastAPI 装不上；改用标准库后<b>零 pip 依赖</b>，<code>python server/main.py</code> 直接跑，更贴合"启动简单"的目标</td><td>一旦能联网装包，换 FastAPI 只改 <code>main.py</code> 一个文件，路由与 SSE 契约完全不变</td></tr>
+<tr><td><b>推理后端</b></td><td>LM Studio 本地服务器<br><span style="color:var(--muted)">OpenAI 兼容 /v1 · :1234</span></td><td>自带 llama.cpp 内核与 CUDA 运行时，不必自行编译或单独配 CUDA；<code>lms</code> 命令行可控端口、上下文长度、GPU 卸载比例；本地 GGUF 用 <code>lms import --link</code> 登记，不复制文件</td><td>KV 缓存量化只能在图形界面设一次；要彻底无 GUI 依赖 → 自备 llama.cpp 官方二进制</td></tr>
+<tr><td><b>前端</b></td><td>原生 HTML/CSS/JS</td><td>无构建链、无 node_modules、无 CDN，天然满足离线要求</td><td>功能膨胀到 10+ 页面 → Vite + Vue</td></tr>
+<tr><td><b>存储</b></td><td>SQLite（标准库）</td><td>单文件、可整包备份、零运维</td><td>多人并发写 → PostgreSQL</td></tr>
+</tbody>
+</table>
+
+<div class="note">
+  <span class="tag">一句话判断</span>
+  <p>如果你的目标只是「在本地跟模型聊天」，那么装一个 Open WebUI 或直接用 LM Studio 自带对话窗口，半小时就够，不必自建。<b>自建的真实价值在于三件事</b>：参数可被精确钳制（防止一调 <code>n_ctx</code> 就把 8GB 显存打爆）、上下文预算透明可见（知道模型为什么"忘记"了前文）、以及能作为你自己的工具链底座继续长（接 RAG、接工具调用、接批处理脚本）。如果这三件事你都不需要，选现成方案更划算。</p>
+</div>
+
+<!-- ============ 1 ============ -->
+<h2 id="s1"><span class="n">1</span>整体架构与职责划分</h2>
+<p class="lead">核心原则：推理归推理，业务归业务，渲染归渲染。三者用一条 HTTP 边界隔开，任何一层都可以单独替换而不影响其他两层。</p>
+
+<h3 id="s11">1.1 进程拓扑与数据流</h3>
+
+<svg viewBox="0 0 900 360" width="100%" role="img" style="margin:10px 0 6px; font-family:'Microsoft YaHei UI',system-ui,sans-serif">
+  <title>本地 AI 界面三层进程拓扑</title>
+  <desc>浏览器通过 HTTP 与 SSE 访问本地后端，后端经 OpenAI 兼容协议转发到推理服务，推理服务占用 GPU，后端读写 SQLite。</desc>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#5f6b72" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect x="30" y="62" width="168" height="96" rx="8" fill="#ffffff" stroke="#c9d0d4" stroke-width="1"/>
+  <text x="114" y="88" text-anchor="middle" font-size="13.5" font-weight="600" fill="#15181d">浏览器</text>
+  <text x="114" y="109" text-anchor="middle" font-size="11.5" fill="#6b7480">index.html / app.js</text>
+  <text x="114" y="127" text-anchor="middle" font-size="11.5" fill="#6b7480">原生 JS · 无构建</text>
+  <text x="114" y="145" text-anchor="middle" font-size="11.5" fill="#8d95a0">127.0.0.1:8787</text>
+
+  <rect x="286" y="46" width="212" height="128" rx="8" fill="#e9f3f0" stroke="#0f6b5c" stroke-width="1"/>
+  <text x="392" y="72" text-anchor="middle" font-size="13.5" font-weight="600" fill="#0a4f44">后端 · 标准库</text>
+  <text x="392" y="92" text-anchor="middle" font-size="11.5" fill="#0a4f44">静态托管 + /api/*</text>
+  <text x="392" y="110" text-anchor="middle" font-size="11.5" fill="#3b424d">参数钳制 · 上下文预算</text>
+  <text x="392" y="128" text-anchor="middle" font-size="11.5" fill="#3b424d">SSE 帧封装 · 流式转发</text>
+  <text x="392" y="146" text-anchor="middle" font-size="11.5" fill="#3b424d">鉴权 · 日志 · 落盘</text>
+  <text x="392" y="164" text-anchor="middle" font-size="11.5" fill="#6b7480">http.server :8787</text>
+
+  <rect x="586" y="46" width="212" height="100" rx="8" fill="#ffffff" stroke="#c9d0d4" stroke-width="1"/>
+  <text x="692" y="72" text-anchor="middle" font-size="13.5" font-weight="600" fill="#15181d">推理服务</text>
+  <text x="692" y="92" text-anchor="middle" font-size="11.5" fill="#6b7480">LM Studio :1234</text>
+  <text x="692" y="110" text-anchor="middle" font-size="11.5" fill="#6b7480">llama.cpp 内核</text>
+  <text x="692" y="130" text-anchor="middle" font-size="11.5" fill="#8d95a0">OpenAI 兼容 /v1</text>
+
+  <rect x="586" y="176" width="212" height="64" rx="8" fill="#f2f4f5" stroke="#c9d0d4" stroke-width="1"/>
+  <text x="692" y="200" text-anchor="middle" font-size="13" font-weight="600" fill="#15181d">GPU · 8GB VRAM</text>
+  <text x="692" y="220" text-anchor="middle" font-size="11.5" fill="#6b7480">权重 · KV cache · 计算缓冲</text>
+
+  <rect x="306" y="248" width="172" height="58" rx="8" fill="#ffffff" stroke="#c9d0d4" stroke-width="1"/>
+  <text x="392" y="270" text-anchor="middle" font-size="13" font-weight="600" fill="#15181d">SQLite</text>
+  <text x="392" y="289" text-anchor="middle" font-size="11.5" fill="#6b7480">data/app.db · WAL</text>
+
+  <path d="M200 96 L280 96" fill="none" stroke="#5f6b72" stroke-width="1.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
+  <text x="240" y="82" text-anchor="middle" font-size="11" fill="#3b424d">HTTP</text>
+  <text x="240" y="116" text-anchor="middle" font-size="11" fill="#3b424d">SSE</text>
+
+  <path d="M500 82 L580 82" fill="none" stroke="#5f6b72" stroke-width="1.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
+  <text x="540" y="68" text-anchor="middle" font-size="11" fill="#3b424d">/v1</text>
+
+  <path d="M692 150 L692 172" fill="none" stroke="#5f6b72" stroke-width="1.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
+  <text x="710" y="166" font-size="11" fill="#3b424d">CUDA</text>
+
+  <path d="M392 178 L392 244" fill="none" stroke="#5f6b72" stroke-width="1.5" marker-end="url(#ar)" marker-start="url(#ar)"/>
+  <text x="404" y="214" font-size="11" fill="#3b424d">sqlite3</text>
+
+  <text x="30" y="336" font-size="11.5" fill="#8d95a0">虚线框之外无任何网络出口 · 前端不引用任何 CDN · 无遥测 · 无版本检查</text>
+</svg>
+
+<p>数据流一句话：<b>用户输入 → 后端拼上下文 → 推理服务流式吐 token → 后端封成 SSE 帧 → 前端逐字上屏 → 落盘</b>。整条链路上只有三个 TCP 端口，全部绑定 <code>127.0.0.1</code>，没有一处需要出网。</p>
+
+<h3 id="s12">1.2 四层职责边界</h3>
+<p>划清"谁不该做什么"比划清"谁做什么"更重要——绝大多数本地 AI 项目的返工，都源于把职责放错了层。</p>
+
+<table>
+<thead><tr><th style="width:13%">层</th><th style="width:19%">组件</th><th style="width:34%">职责</th><th>明确不该做的事</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>L1 推理层</b></td>
+  <td>LM Studio（llama.cpp 内核）</td>
+  <td>权重加载与 GPU 卸载、分词、采样、KV cache 管理、并发 slot 调度</td>
+  <td>不存任何业务数据；不做会话管理；不实现上下文裁剪策略</td>
+</tr>
+<tr>
+  <td><b>L2 接入层</b></td>
+  <td>标准库后端（http.server）</td>
+  <td>协议转换（OpenAI ↔ 前端自定义事件）、参数合法性钳制、上下文预算与裁剪、SSE 帧封装、断流兜底、日志与指标</td>
+  <td>不自己实现推理；不精确复算 token（以服务端返回的 <code>usage</code> 为准，本地只做粗略预估兜底）；不做前端渲染逻辑</td>
+</tr>
+<tr>
+  <td><b>L3 展示层</b></td>
+  <td>原生 HTML/CSS/JS</td>
+  <td>增量 DOM 更新、Markdown 与代码渲染、交互状态、快捷键</td>
+  <td>不直连推理服务（否则必须开 CORS 并暴露推理端口）；不存权威数据（本地缓存仅作兜底）</td>
+</tr>
+<tr>
+  <td><b>L4 存储层</b></td>
+  <td>SQLite 单文件</td>
+  <td>会话、消息、参数预设、使用统计</td>
+  <td>不存模型权重（模型由推理层管）；不做全文检索先用 <code>LIKE</code>，够用了再上 FTS5</td>
+</tr>
+</tbody>
+</table>
+
+<div class="note warn">
+  <span class="tag">为什么不能省掉后端</span>
+  <p>纯前端直连推理服务看起来很诱人（少一个进程），但会立刻撞上四堵墙：<b>①</b> 必须给推理服务开 CORS，等于把 <code>1234</code> 端口向本机所有网页敞开；<b>②</b> 上下文裁剪需要 token 计数与预算判断，放前端做则每个标签页各算一套，结果不一致；<b>③</b> 断流后无法把"已经生成的半截回答"可靠落盘；<b>④</b> 参数钳制失效，用户把 <code>n_ctx</code> 拉到 128k 时没有任何一层能拦住，直接 OOM。所以后端不是可选项。</p>
+</div>
+
+<h3 id="s13">1.3 推理服务接入方式选型</h3>
+<p>四种候选，共同点都是提供 OpenAI 兼容的 <code>/v1/chat/completions</code>。这意味着<b>上层代码只依赖 <code>base_url</code> 和模型名</b>，换后端是改配置而非改代码——这是本方案最重要的解耦点。</p>
+
+<table class="tight">
+<thead><tr><th style="width:16%">方案</th><th style="width:12%">依赖重量</th><th style="width:30%">优势</th><th style="width:26%">短板</th><th>本机适配</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>LM Studio</b><br><span style="color:var(--accent);font-size:12px">默认选定</span></td>
+  <td>GUI + CLI<br><span style="color:var(--muted)">自带 CUDA 运行时</span></td>
+  <td>内置 llama.cpp 内核，<b>不必自己编译也不必单独配 CUDA</b>；<code>lms</code> 命令行能起服务、设端口、设上下文、控 GPU 卸载比例；本地 GGUF 用 <code>lms import --link</code> 登记，不复制文件</td>
+  <td>闭源 GUI 依赖；<b>KV 缓存量化没有命令行开关</b>，32k 需在界面设一次 Q8_0</td>
+  <td>✅ 官网可达，装完即用</td>
+</tr>
+<tr>
+  <td><b>llama.cpp<br>llama-server</b></td>
+  <td>单 exe<br><span style="color:var(--muted)">+ CUDA dll</span></td>
+  <td>最彻底的"零依赖"：一个二进制加一个 GGUF 就能跑；<code>-c / -ngl / --flash-attn / --cache-type-k</code> 全部可控，连 KV 量化都能命令行设</td>
+  <td>Windows 预编译包只发布在 GitHub Releases</td>
+  <td>❌ 本机不可达：GitHub 超时，且无 cmake / MSVC / nvcc，无法自建</td>
+</tr>
+<tr>
+  <td><b>llama-cpp-python</b></td>
+  <td>pip 包<br><span style="color:var(--muted)">自带 OpenAI server</span></td>
+  <td>纯 pip 管理，<code>python -m llama_cpp.server</code> 起服务</td>
+  <td>CUDA 版 wheel 托管在 GitHub Releases，PyPI 上多为 CPU 版</td>
+  <td>❌ Python 3.13 的 wheel 覆盖不全，大概率要本地编译</td>
+</tr>
+<tr>
+  <td>vLLM</td>
+  <td>重<br><span style="color:var(--muted)">torch + CUDA</span></td>
+  <td>连续批处理，多并发吞吐高一个量级</td>
+  <td>需 Linux/WSL2；显存需求高；8GB 桌面卡基本不适用</td>
+  <td>❌ 当前硬件不适用</td>
+</tr>
+</tbody>
+</table>
+
+<p>接入代码的形状长这样，注意它完全不关心对面是 LM Studio、llama-server 还是任何别的 OpenAI 兼容服务：</p>
+
+<pre><code><span class="c"># server/llm.py —— 唯一与推理后端耦合的文件</span>
+BASE = os.getenv(<span class="k">"LLM_BASE"</span>, <span class="k">"http://127.0.0.1:1234/v1"</span>)
+MODEL = os.getenv(<span class="k">"LLM_MODEL"</span>, <span class="k">"qwen3-8b"</span>)
+
+<span class="k">async def</span> stream_chat(messages, params):
+    payload = {<span class="k">"model"</span>: MODEL, <span class="k">"messages"</span>: messages,
+               <span class="k">"stream"</span>: True, <span class="k">"stream_options"</span>: {<span class="k">"include_usage"</span>: True}, **params}
+    <span class="k">async with</span> httpx.AsyncClient(timeout=<span class="k">None</span>) <span class="k">as</span> c:
+        <span class="k">async with</span> c.stream(<span class="k">"POST"</span>, f<span class="k">"{BASE}/chat/completions"</span>, json=payload) <span class="k">as</span> r:
+            <span class="k">async for</span> line <span class="k">in</span> r.aiter_lines():
+                <span class="k">if</span> line.startswith(<span class="k">"data: "</span>) <span class="k">and</span> line[6:] != <span class="k">"[DONE]"</span>:
+                    <span class="k">yield</span> json.loads(line[6:])</code></pre>
+
+<h3 id="s14">1.4 接口约定（前后端契约）</h3>
+<p>不用直接透传 OpenAI 的流式结构，而是自定义五种 SSE 事件。理由：前端不必解析 <code>choices[0].delta.content</code> 这种三层嵌套，而且可以在流中间夹带 <code>usage</code>、显存水位这类只有后端知道的指标。</p>
+
+<table class="tight">
+<thead><tr><th style="width:24%">端点</th><th style="width:10%">方法</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>/api/health</code></td><td>GET</td><td>返回推理服务连通性、显存已用/总量、当前模型、后端版本</td></tr>
+<tr><td><code>/api/models</code></td><td>GET</td><td>可用模型列表（id、量化、大小、是否已加载、支持的最大 ctx）</td></tr>
+<tr><td><code>/api/models/load</code></td><td>POST</td><td>指定模型与 <code>n_ctx</code> 加载；返回实际生效值（可能被钳制）</td></tr>
+<tr><td><code>/api/chat</code></td><td>POST · SSE</td><td>对话主入口，流式返回 <code>meta / delta / usage / done / error</code></td></tr>
+<tr><td><code>/api/chat/stop</code></td><td>POST</td><td>中断当前生成，已生成部分照常落盘</td></tr>
+<tr><td><code>/api/sessions</code></td><td>GET/POST</td><td>会话列表（含摘要与 token 占用）/ 新建</td></tr>
+<tr><td><code>/api/sessions/{id}</code></td><td>PATCH/DELETE</td><td>重命名、归档、删除（级联删消息）</td></tr>
+<tr><td><code>/api/sessions/{id}/messages</code></td><td>GET</td><td>拉取历史消息，用于切换会话时恢复</td></tr>
+<tr><td><code>/api/sessions/{id}/export</code></td><td>GET</td><td>导出 Markdown / JSON</td></tr>
+<tr><td><code>/api/sessions/{id}/compact</code></td><td>POST</td><td>手动触发一次自动压缩，返回压缩摘要与前后占用</td></tr>
+</tbody>
+</table>
+
+<pre><code><span class="c">// POST /api/chat  请求体</span>
+{ <span class="k">"session_id"</span>: <span class="k">"s_01H..."</span>, <span class="k">"content"</span>: <span class="k">"解释一下 KV cache"</span>,
+  <span class="k">"params"</span>: { <span class="k">"temperature"</span>: 0.7, <span class="k">"top_p"</span>: 0.9, <span class="k">"max_tokens"</span>: 1024 } }
+
+<span class="c">// 响应：text/event-stream，逐帧推送</span>
+event: meta
+data: {<span class="k">"msg_id"</span>:<span class="k">"m_..."</span>,<span class="k">"model"</span>:<span class="k">"qwen3-8b"</span>,<span class="k">"ctx_used"</span>:1240,<span class="k">"ctx_max"</span>:32768,<span class="k">"trimmed"</span>:0}
+
+event: delta
+data: {<span class="k">"t"</span>:<span class="k">"KV"</span>}
+
+event: usage
+data: {<span class="k">"prompt_tokens"</span>:1240,<span class="k">"completion_tokens"</span>:318,<span class="k">"ttft_ms"</span>:640,<span class="k">"tps"</span>:32.4}
+
+event: done
+data: {<span class="k">"finish_reason"</span>:<span class="k">"stop"</span>}</code></pre>
+
+<div class="note">
+  <span class="tag">关键实现细节</span>
+  <p>SSE 响应必须带这三个头，否则会出现"等了 20 秒，然后整段文字一次性蹦出来"——这是本地流式最常见的翻车点：<code>Cache-Control: no-cache</code>、<code>X-Accel-Buffering: no</code>、<code>Connection: keep-alive</code>。同时 <code>httpx</code> 侧要显式 <code>timeout=None</code>，否则长回答会在默认 5 秒读超时处被掐断。</p>
+</div>
+
+<!-- ============ 2 ============ -->
+<h2 id="s2"><span class="n">2</span>核心功能模块</h2>
+<p class="lead">四个模块，按依赖顺序排列。M1 和 M2 是能跑起来的最小集，M3 决定这个工具能不能长期用下去。</p>
+
+<h3 id="s21">2.1 M1 模型与参数选择</h3>
+<table class="tight">
+<thead><tr><th style="width:17%">能力</th><th style="width:29%">要点</th><th>实现备注</th></tr></thead>
+<tbody>
+<tr><td>模型列表</td><td>列出本机已有模型，显示量化等级与体积，标记当前已加载</td><td>代理 <code>/v1/models</code>，附加从文件名解析出的量化信息（<code>Q4_K_M</code> 等）</td></tr>
+<tr><td>切换模型</td><td>切换时先卸载旧模型再加载新模型，避免双份权重同时占显存</td><td><code>lms unload --all</code> 后 <code>lms load</code>；切换期间 UI 显示"加载中 Ns"</td></tr>
+<tr><td>采样参数</td><td><code>temperature / top_p / top_k / repeat_penalty / max_tokens</code></td><td>每个参数给出安全区间，越界时钳制并在界面标注"已自动调整"</td></tr>
+<tr><td>上下文长度</td><td><code>num_ctx</code> 是<b>唯一会直接导致 OOM 的参数</b>，必须按显存预算设上限</td><td>上限由 4.1 的公式算出，不做成自由滑块而做成"档位选择"</td></tr>
+<tr><td>系统提示词</td><td>可保存多套预设（如"代码助手""翻译""严谨问答"），会话级生效</td><td>存 <code>settings</code> 表；新建会话时可选择继承哪套预设</td></tr>
+<tr><td>参数预设</td><td>把一组参数存为命名预设，一键切换</td><td>同上，JSON 序列化即可，不必单独建表</td></tr>
+</tbody>
+</table>
+
+<div class="note warn">
+  <span class="tag">设计取舍</span>
+  <p>不要提供 <code>n_ctx</code> 的自由输入框。8GB 显存下 32k 上下文会直接溢出（见 4.1 计算），而用户在看到 OOM 之前完全没有预警。做成 <code>4k / 8k / 16k</code> 三档，每档标注"约占用 X GB 显存"，并且后端在 <code>/api/models/load</code> 里再校验一次——界面是给人看的，钳制是给系统兜底的，两者都要有。</p>
+</div>
+
+<h3 id="s22">2.2 M2 对话输入与流式输出</h3>
+<p>这一模块的技术难点不在"把字显示出来"，而在<b>长回答下不卡、中断时不留残局、渲染时不破格式</b>。</p>
+
+<table class="tight">
+<thead><tr><th style="width:17%">能力</th><th style="width:31%">要点</th><th>实现备注</th></tr></thead>
+<tbody>
+<tr><td>输入框</td><td>多行自适应高度，<code>Enter</code> 发送 / <code>Shift+Enter</code> 换行 / <code>Esc</code> 中断</td><td><code>textarea</code> + 自动 <code>scrollHeight</code>；输入法合成期间（<code>compositionstart</code>）不响应 Enter，否则中文输入会误发</td></tr>
+<tr><td>流式接收</td><td><code>fetch</code> + <code>ReadableStream</code> 手动解析 SSE</td><td>不用 <code>EventSource</code>——它只支持 GET，没法带请求体</td></tr>
+<tr><td>增量渲染</td><td>按帧合并，而不是每个 token 触发一次重排</td><td>用 <code>requestAnimationFrame</code> 攒 16ms 的增量一次性写入同一个文本节点。裸写 <code>innerText +=</code> 在 2k 字后会明显掉帧</td></tr>
+<tr><td>Markdown</td><td>流式过程中只做轻量转义与换行，<b>流结束后</b>再做完整解析与高亮</td><td>边流边解析 <code>marked</code> 会导致代码块反复重排闪烁。本地引入 <code>vendor/marked.min.js</code>，<b>不走 CDN</b></td></tr>
+<tr><td>代码块</td><td>等宽字体、横向滚动、复制按钮、语言标签</td><td>高亮同样延迟到流结束；复制用 <code>navigator.clipboard</code></td></tr>
+<tr><td>中断生成</td><td>点"停止"立即停字，已生成部分保留为正式消息</td><td>前端 <code>AbortController</code> + 后端 <code>asyncio.CancelledError</code> 里把已累积内容写库</td></tr>
+<tr><td>指标展示</td><td>每条回答下方显示：首字延迟、生成速度 t/s、token 数</td><td>调试用核心指标。8B Q4 在 4060 上应稳定在 25–40 t/s，低于 15 就说明 offload 层数不对</td></tr>
+<tr><td>失败态</td><td>OOM、连接断开、模型未加载 → 结构化提示 + 重试按钮</td><td>绝不出现白屏或只转圈。后端把异常统一成 <code>event: error</code> 带 <code>code</code></td></tr>
+</tbody>
+</table>
+
+<pre><code><span class="c">// web/app.js —— 增量渲染核心，30 行</span>
+<span class="k">let</span> pending = <span class="k">""</span>, raf = 0;
+<span class="k">const</span> node = document.createTextNode(<span class="k">""</span>);   <span class="c">// 复用同一个文本节点</span>
+bubble.appendChild(node);
+
+<span class="k">function</span> flush() { raf = 0; node.data += pending; pending = <span class="k">""</span>; }
+
+<span class="k">for</span> (<span class="k">const</span> ev <span class="k">of</span> parseSSE(chunk)) {
+  <span class="k">if</span> (ev.type === <span class="k">"delta"</span>) {
+    pending += ev.data.t;
+    <span class="k">if</span> (!raf) raf = requestAnimationFrame(flush);
+  }
+}</code></pre>
+
+<h3 id="s23">2.3 M3 历史会话与上下文控制</h3>
+<p>这是整个方案里最容易被做浅的部分。绝大多数自建界面都有"会话列表"，但很少有"上下文预算可视化"——而这恰恰是本地小模型最需要的能力，因为 8B 模型的上下文窗口本来就窄。</p>
+
+<h4>会话管理</h4>
+<ul style="margin:0 0 16px; padding-left:20px; font-size:14px; color:var(--ink2)">
+  <li>列表按 <code>updated_at</code> 倒序，显示标题、模型、消息数、最后更新时间</li>
+  <li>标题自动取首条用户输入的前 20 字，可手动重命名</li>
+  <li>支持归档（软删除）与彻底删除（级联），删除前二次确认</li>
+  <li>导出 Markdown（人读）与 JSON（机读、可再导入）</li>
+  <li>会话级参数覆盖：同一会话内可以锁定某套系统提示词与采样参数</li>
+</ul>
+
+<h4>上下文控制策略</h4>
+<table class="tight">
+<thead><tr><th style="width:16%">策略</th><th style="width:34%">规则</th><th>适用与代价</th></tr></thead>
+<tbody>
+<tr><td><b>预算分配</b></td><td>可用提示区 = <code>n_ctx − max_tokens − 安全余量(256)</code></td><td>先把输出空间留出来，否则回答会被硬截断在半句话</td></tr>
+<tr><td><b>保留优先级</b></td><td>系统提示词全量保留 → 最近 K 轮全量保留 → 更早的消息从最旧的开始丢弃</td><td>默认策略，无需额外推理，成本最低</td></tr>
+<tr><td>首尾保留</td><td>保留首轮问答（常含关键设定）+ 最近 K 轮，中间丢弃</td><td>适合"开头给了长篇背景资料"的场景</td></tr>
+<tr><td>摘要压缩</td><td>被丢弃的消息先让模型总结成一段话再拼回上下文</td><td>效果好但要额外一次推理，本地 8B 上会明显变慢，默认关闭</td></tr>
+</tbody>
+</table>
+
+<div class="note">
+  <span class="tag">必须做到的一点</span>
+  <p>裁剪发生时，<b>界面必须明确告诉用户"已省略 N 条历史消息"</b>，而不是静默截断。用户看到模型答非所问时，如果能立刻发现"哦，前半段被裁了"，排查成本从半小时降到三秒。同时上下文用量做成一个常驻进度条：低于 60% 绿色，60–85% 琥珀色，超过 85% 变红并提示"建议新建会话"。</p>
+</div>
+
+<h3 id="s231">2.3.1 自动压缩上下文（Auto-compaction）</h3>
+
+<p>前面的裁剪策略解决的是"装不下怎么办"——它只能丢弃。自动压缩要解决的是"丢掉太浪费"：把早期对话<b>折叠成一段结构化摘要</b>，用 3% 的空间保住 30% 的信息。这是本地小模型场景下的刚需，因为 8B 的上下文窗口本来就窄，而一个人的调试会话往往几十轮。</p>
+
+<div class="note">
+  <span class="tag">最重要的设计前提</span>
+  <p>压缩是<b>发送时视图（send-time view）</b>，不是数据改写。数据库里的原始消息<b>一条都不删</b>，压缩只影响这一次请求发给模型的 payload。带来三个好处：摘要质量不满意可以换策略重压；用户随时能回看原文；压缩逻辑出 bug 时最坏情况只是这次回答变差，数据不会丢。</p>
+</div>
+
+<h4>一、触发条件</h4>
+<p>五个条件<b>全部满足</b>才触发，且在<b>每次请求发出前</b>预检——绝不在流式生成中途打断。</p>
+
+<table class="tight">
+<thead><tr><th style="width:6%">#</th><th style="width:20%">条件</th><th style="width:16%">默认值</th><th>判定逻辑与理由</th></tr></thead>
+<tbody>
+<tr><td>C1</td><td><b>用量超过阈值</b></td><td><code>75%</code><br>可配 60–90%</td><td><code>预计占用 &gt; n_ctx × 0.75</code>。留 25% 余量是给"这一轮本身可能很长"的缓冲——等 95% 再压，往往已经来不及。</td></tr>
+<tr><td>C2</td><td><b>有足够可压的轮次</b></td><td>≥ 3 轮</td><td>可压轮次 = 总轮次 − 保护轮次。少于 3 轮时压缩收益小于摘要开销，不如直接滑窗。</td></tr>
+<tr><td>C3</td><td><b>不在生成中</b></td><td>强制</td><td>压缩只在请求前预检时发生。生成中途改变上下文会让模型输出前后矛盾，是明确禁止项。</td></tr>
+<tr><td>C4</td><td><b>冷却已过</b></td><td>距上次压缩 ≥ 1 轮</td><td>防抖。压缩会把占用从 78% 打到 41%，如果不冷却，下一轮立刻又接近阈值但可压内容太少，导致反复压、反复调模型，白白增加延迟。</td></tr>
+<tr><td>C5</td><td><b>压缩确实有效</b></td><td>能降到 <code>45%</code> 以下</td><td>预估压缩后的占用。如果压完仍在阈值之上（说明单条消息本身超长），则不压，直接走"单条截断"路径——压了也白压，还多花一次推理。</td></tr>
+</tbody>
+</table>
+
+<h4>二、压缩粒度</h4>
+<table class="tight">
+<thead><tr><th style="width:18%">粒度选择</th><th style="width:34%">规则</th><th>为什么是这个粒度</th></tr></thead>
+<tbody>
+<tr><td><b>以「轮次」为单位</b><br><span style="color:var(--accent);font-size:12px">核心决定</span></td><td>1 轮 = 1 条 user + 1 条 assistant，成对处理，不可拆分</td><td>按单条消息切会把一问一答拆开，摘要里出现"用户问了 X，但回答被切走"，语义直接断裂。<b>按轮次是保证摘要在语义上自洽的最小单位。</b></td></tr>
+<tr><td>单次压缩上限</td><td>最多 <code>12</code> 轮 / 次</td><td>避免一次压掉半个会话。压缩范围过大时摘要必然失真（把 30 轮压进 400 tokens，细节全没了）。超过上限就分多次，每轮请求各压一批。</td></tr>
+<tr><td>累积方式</td><td>从<b>最旧的未压缩轮次</b>开始向后贪心累积，直到释放量足够</td><td>保证压缩区间永远是连续的前缀，摘要覆盖范围可以用一个整数 <code>covered_turns</code> 精确描述，不必记录区间集合。</td></tr>
+<tr><td>单条超长消息</td><td>单条超过 <code>30% n_ctx</code> 时，先做抽取式截断（保留首尾各 40%），再进摘要</td><td>一条 5000 字的粘贴内容会单独吃掉大半窗口，这种消息必须先压，否则压多少轮都不够。</td></tr>
+</tbody>
+</table>
+
+<h4>三、保留策略（分层）</h4>
+<table class="tight">
+<thead><tr><th style="width:8%">层</th><th style="width:26%">内容</th><th style="width:18%">处理方式</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><b>L0</b></td><td>系统提示词</td><td><b>永不压缩</b></td><td>里面是角色设定与硬约束，被摘要掉等于换了个人格</td></tr>
+<tr><td><b>L1</b></td><td>已有摘要（若有）</td><td>与新内容合并后<b>重写</b></td><td>摘要的摘要：第二次压缩时，把旧摘要 + 新一批轮次一起喂给模型，产出覆盖范围更大的新摘要。<code>covered_turns</code> 单调递增</td></tr>
+<tr><td><b>L2</b></td><td>最近 <code>4</code> 轮</td><td><b>原文保留</b></td><td>模型需要最近的对话原文才能接上"刚才说到哪"。这 4 轮绝不动，是可配参数</td></tr>
+<tr><td><b>L3</b></td><td>更早的轮次</td><td>压成摘要</td><td>唯一被替换的层</td></tr>
+<tr><td><b>L4</b></td><td>单条超长消息</td><td>先截断再进摘要</td><td>见上表"单条超长消息"</td></tr>
+</tbody>
+</table>
+
+<h4>四、摘要规格</h4>
+<table class="tight">
+<thead><tr><th style="width:18%">参数</th><th style="width:20%">取值</th><th>理由</th></tr></thead>
+<tbody>
+<tr><td>生成方式</td><td><b>非流式</b>，独立请求</td><td>摘要不需要逐字展示，流式只会增加复杂度</td></tr>
+<tr><td>temperature</td><td><code>0.2</code></td><td>摘要是信息压缩任务，需要稳定复现，不需要创造性</td></tr>
+<tr><td>长度上限</td><td><code>min(600, 被压原文 tokens × 18%)</code></td><td>压缩比控制在 5:1 左右。压得太狠会丢关键约束，压得不够则省不下空间</td></tr>
+<tr><td>输出结构</td><td>四段固定标题：<br>① 目标与约束 ② 已达成的结论 ③ 关键事实与数据 ④ 未决问题</td><td>固定结构让摘要可被模型可靠消费，也让人能快速扫读。自由散文式摘要的可用性差很多</td></tr>
+<tr><td>注入方式</td><td>以 <code>role: system</code> 插入，带前缀标记</td><td>形如 <code>[对话历史摘要 · 覆盖前 N 轮 · 生成于 …]</code>。让模型明确知道这是二手信息，不是原始对话</td></tr>
+</tbody>
+</table>
+
+<h4>五、失败降级链</h4>
+<p>压缩会额外发起一次推理调用，就一定会失败（模型忙、显存紧、超时）。<b>压缩失败绝不能让用户聊不下去</b>，所以设计三级降级，每一级都比上一级更"笨"但更可靠：</p>
+
+<pre class="tree">① <b>LLM 摘要</b>（首选）       → 超时 20s 或返回异常
+        ↓ 失败
+② <b>抽取式压缩</b>（本地，零推理） → 每轮取「用户问题首句 + 助手回答首 2 句」拼接
+        ↓ 仍然超限
+③ <b>滑窗丢弃</b>（最旧轮次直接丢） → 记录丢弃数量，界面提示
+        ↓ 仍然超限
+   <b>结构化报错</b> CTX_OVERFLOW  → 提示用户新建会话，绝不静默截断</pre>
+
+<p>每一档的实际使用情况通过 <code>event: compact</code> 里带的 <code>mode</code> 字段回传到界面，用户能一眼看到"这次用的是本地抽取式，不是模型摘要"。</p>
+
+<h4>六、可观测与人工介入</h4>
+<ul style="margin:0 0 16px; padding-left:20px; font-size:14px; color:var(--ink2)">
+  <li>消息流中插入一条<b>灰条</b>：「已压缩 6 轮历史 → 摘要 412 tokens（占用 78% → 41%）」，点击展开摘要全文</li>
+  <li>手动入口：界面「立即压缩」按钮 + <code>POST /api/sessions/{id}/compact</code>，用于在长对话前主动腾空间</li>
+  <li>总开关：设置里可关闭自动压缩，关闭后退回纯滑窗策略（保留策略仍然生效）</li>
+  <li>缓存失效：摘要覆盖范围内的消息被编辑或删除时，标记 <code>dirty</code>，下次请求重算摘要</li>
+  <li>统计写入会话表：<code>compact_count</code>、<code>last_compact_at</code>、累计节省 token 数</li>
+</ul>
+
+<div class="note warn">
+  <span class="tag">一个容易踩的坑</span>
+  <p>压缩后的 payload 里，摘要消息<b>必须排在系统提示词之后、保留轮次之前</b>，且要保证角色序列合法（system → user → assistant → …）。如果把摘要塞在 user 消息后面，部分推理服务会拒绝请求或让模型误判说话人。另外摘要文本里不要出现"user:" "assistant:" 这类字样，否则模型可能把它当成真的对话轮次继续模仿。</p>
+</div>
+
+<h3 id="s24">2.4 M4 数据模型与目录结构</h3>
+<p>三张表够了。不要过早设计权限表、标签表、分支树——用两周之后你才知道真正需要什么。</p>
+
+<pre><code><span class="c">-- data/app.db  启动时 PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;</span>
+<span class="k">CREATE TABLE</span> sessions (
+  id          TEXT PRIMARY KEY,
+  title       TEXT NOT NULL DEFAULT <span class="k">'新对话'</span>,
+  model       TEXT,
+  params_json TEXT NOT NULL DEFAULT <span class="k">'{}'</span>,   <span class="c">-- 采样参数 + 系统提示词</span>
+  summary_json TEXT,        <span class="c">-- {text, covered_turns, tokens, mode, at} 自动压缩结果</span>
+  summary_dirty INTEGER NOT NULL DEFAULT 0,  <span class="c">-- 覆盖范围内消息被改动时置 1</span>
+  compact_count INTEGER NOT NULL DEFAULT 0,
+  last_compact_at INTEGER,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL,
+  archived    INTEGER NOT NULL DEFAULT 0
+);
+
+<span class="k">CREATE TABLE</span> messages (
+  id         TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL <span class="k">REFERENCES</span> sessions(id) <span class="k">ON DELETE CASCADE</span>,
+  role       TEXT NOT NULL <span class="k">CHECK</span>(role <span class="k">IN</span> (<span class="k">'system'</span>,<span class="k">'user'</span>,<span class="k">'assistant'</span>)),
+  content    TEXT NOT NULL,
+  tokens     INTEGER,
+  meta_json  TEXT,        <span class="c">-- ttft_ms / tps / finish_reason / trimmed</span>
+  created_at INTEGER NOT NULL
+);
+<span class="k">CREATE INDEX</span> idx_msg_session <span class="k">ON</span> messages(session_id, created_at);
+
+<span class="k">CREATE TABLE</span> settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);</code></pre>
+
+<pre class="tree">local-ai-ui/
+├─ <b>一键启动.bat</b>          <span class="cm"># 检查端口 → 起推理服务 → 等 health → 起后端 → 开浏览器</span>
+├─ server/
+│  ├─ main.py              <span class="cm"># 标准库 HTTP 入口、静态托管、所有路由、SSE</span>
+│  ├─ llm.py               <span class="cm"># 唯一与推理后端耦合的文件</span>
+│  ├─ context.py           <span class="cm"># 预算计算与裁剪策略</span>
+│  ├─ store.py             <span class="cm"># SQLite 读写（标准库 sqlite3）</span>
+│  ├─ tokens.py            <span class="cm"># token 估算（中英混合加权）</span>
+│  └─ config.py            <span class="cm"># 默认值 + config.json + 环境变量</span>
+├─ web/
+│  ├─ index.html  app.js  app.css
+│  └─ vendor/              <span class="cm"># marked / highlight / dompurify，本地文件，不走 CDN</span>
+├─ scripts/
+│  ├─ lmstudio.ps1        <span class="cm"># 推理服务启动 / 探活 / 模型导入</span>
+│  └─ smoke.py            <span class="cm"># 端到端冒烟测试（37 项）</span>
+├─ data/app.db
+├─ logs/
+├─ models/                 <span class="cm"># Qwen3-8B-Q4_K_M.gguf（4.68GB）</span>
+└─ docs/adr-001.md         <span class="cm"># 选型决策记录</span></pre>
+
+<!-- ============ 3 ============ -->
+<h2 id="s3"><span class="n">3</span>分阶段实施（P0–P7）</h2>
+<p class="lead">七个阶段，累计约 7.5 个工作日。关键设计是：<b>P1 结束时就已经能对话了</b>（用命令行），P2 结束时能通过 API 对话，P3 结束时才有人机界面。这样任何一天中断，你都持有一个可用的东西，而不是一堆半成品。</p>
+
+<div class="phase">
+  <div class="ph"><span class="pn">P0</span><h3>决策定稿与环境基线</h3><span class="pt">0.5 天</span></div>
+  <p class="goal">把"用哪个模型、多少上下文、几个人用"这三个问题写成文件，避免后面反复摇摆。</p>
+  <ul class="acts">
+    <li>写 <code>docs/adr-001.md</code>：记录推理后端选择、模型选择、以及放弃其它选项的理由</li>
+    <li>建 <code>models.yaml</code>：1 个主力模型 + 1 个轻量备选（对应 4.2 的档位表）</li>
+    <li>建独立虚拟环境，锁 Python 版本（建议 3.11/3.12，见 4.2 的兼容性说明）</li>
+    <li>确认端口占用情况：<code>8787</code>（后端）、<code>1234</code>（推理）</li>
+  </ul>
+  <div class="io">
+    <div><h5>产出</h5><ul>
+      <li><code>docs/adr-001.md</code></li>
+      <li><code>models.yaml</code></li>
+      <li><code>requirements.txt</code>（标准库实现，实际 0 个第三方包）</li>
+      <li><code>.venv/</code> 可 <code>python -V</code> 通过</li>
+    </ul></div>
+    <div><h5>验收（可验证）</h5><ul class="ck">
+      <li>能用一句话回答：主力模型名 + 量化 + ctx 档位 + 预期并发数</li>
+      <li><code>python -c "import sys;print(sys.version)"</code> 输出符合预期</li>
+      <li><code>netstat -ano | findstr :8787</code> 无输出（端口空闲）</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><span class="pn">P1</span><h3>推理服务跑通（无界面）</h3><span class="pt">0.5 天</span></div>
+  <p class="goal">证明"模型能在这张卡上跑出可接受的速度"，这是整个项目的地基。地基不成立，界面做得再好也没用。</p>
+  <ul class="acts">
+    <li>拉取模型：从 ModelScope 下 <code>Qwen3-8B-Q4_K_M.gguf</code>（4.68GB），<code>lms import --link</code> 登记</li>
+    <li>在 LM Studio 界面设一次 <code>Context=32768</code> + KV Cache 量化 <code>Q8_0</code>（命令行无此开关）</li>
+    <li>写 <code>scripts/lmstudio.ps1</code>，固定 ctx 与显存卸载参数并做探活</li>
+    <li>用 <code>curl</code> 直接打 <code>/v1/chat/completions</code>，<code>stream:true</code></li>
+    <li>同时跑 <code>nvidia-smi -l 1</code> 观察显存占用是否符合 4.1 的估算</li>
+  </ul>
+  <div class="io">
+    <div><h5>产出</h5><ul>
+      <li><code>scripts/lmstudio.ps1</code></li>
+      <li><code>scripts/smoke.py</code></li>
+      <li>一份实测记录：TTFT、t/s、显存峰值</li>
+    </ul></div>
+    <div><h5>验收（可验证）</h5><ul class="ck">
+      <li><code>curl 127.0.0.1:1234/v1/models</code> 返回 200 且含目标模型</li>
+      <li>流式请求能<b>逐块</b>打印，而不是等完再一次性输出</li>
+      <li>实测 t/s ≥ 20（8B Q4 档），显存峰值 &lt; 7.4GB</li>
+      <li><b>拔掉网线后仍可对话</b>——离线性的第一次真实验证</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><span class="pn">P2</span><h3>后端最小闭环（SSE 代理）</h3><span class="pt">1 天</span></div>
+  <p class="goal">让 <code>curl</code> 能对着自己的后端完成一次完整流式对话。此时还没有界面，但协议已经定死了。</p>
+  <ul class="acts">
+    <li><code>main.py</code> 实现 <code>/api/health</code>、<code>/api/models</code>、<code>/api/chat</code></li>
+    <li><code>llm.py</code> 封装 <code>httpx</code> 流式转发，处理 <code>stream_options.include_usage</code></li>
+    <li>SSE 三种响应头写死在 <code>StreamingResponse</code> 里</li>
+    <li>实现 <code>asyncio.CancelledError</code> 兜底：客户端断开时把已生成内容写库</li>
+    <li>异常统一转为 <code>event: error</code>，带 <code>code</code> 字段（<code>OOM</code> / <code>BACKEND_DOWN</code> / <code>CTX_OVERFLOW</code>）</li>
+  </ul>
+  <div class="io">
+    <div><h5>产出</h5><ul>
+      <li><code>server/main.py</code>、<code>llm.py</code>、<code>schemas.py</code></li>
+      <li>可运行的 <code>uvicorn server.main:app --port 8787</code></li>
+    </ul></div>
+    <div><h5>验收（可验证）</h5><ul class="ck">
+      <li><code>curl -N -X POST 127.0.0.1:8787/api/chat ...</code> 能看到连续的 <code>event: delta</code> 帧</li>
+      <li>中途 <code>Ctrl+C</code> 后后端进程不崩，日志无 traceback</li>
+      <li>停掉推理服务再请求 → 返回结构化 <code>BACKEND_DOWN</code> 而非 500 裸错</li>
+      <li><code>/api/health</code> 能反映推理服务真实连通状态</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><span class="pn">P3</span><h3>前端最小可用界面</h3><span class="pt">1.5 天</span></div>
+  <p class="goal">从"能通过 API 对话"变成"能通过界面对话"。这是第一次有产品感的时候。</p>
+  <ul class="acts">
+    <li>单页布局：左侧会话栏占位（P4 填充）、主区消息流、底部输入框</li>
+    <li><code>fetch</code> + <code>ReadableStream</code> 解析 SSE，<code>rAF</code> 合并增量渲染</li>
+    <li>右侧参数面板：模型选择、<code>n_ctx</code> 档位、temperature、max_tokens</li>
+    <li>本地引入 <code>marked + highlight + dompurify</code> 到 <code>web/vendor/</code></li>
+    <li>停止生成、重新生成、复制、清空</li>
+    <li>每条回答下方显示 TTFT / tps / tokens</li>
+  </ul>
+  <div class="io">
+    <div><h5>产出</h5><ul>
+      <li><code>web/index.html</code>、<code>app.js</code>、<code>app.css</code></li>
+      <li><code>web/vendor/</code> 三个本地库文件</li>
+    </ul></div>
+    <div><h5>验收（可验证）</h5><ul class="ck">
+      <li>浏览器打开 <code>127.0.0.1:8787</code>，输入后文字<b>逐字出现</b>（不是一次性）</li>
+      <li>生成 2000 字以上回答时滚动流畅，无卡顿掉帧</li>
+      <li>点"停止"后 200ms 内停止出字，已生成内容保留</li>
+      <li>改动温度后，请求体里能看到新值（F12 网络面板确认）</li>
+      <li>断网状态下页面完整可用，控制台<b>零外链请求</b>（Network 面板验证）</li>
+      <li>中文输入法打字时按 Enter 不会误发送</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><span class="pn">P4</span><h3>会话持久化、上下文控制与自动压缩</h3><span class="pt">2 天</span></div>
+  <p class="goal">从"一次性对话框"变成"可以长期用的工具"。这一阶段的成果决定你三个月后还会不会打开它。</p>
+  <ul class="acts">
+    <li>建表 + <code>store.py</code>，启用 WAL 模式；sessions 表补 <code>summary_json / summary_dirty / compact_count</code></li>
+    <li>实现会话增删改查、切换恢复、自动标题</li>
+    <li><code>context.py</code> 实现预算计算、按轮次分组的滑窗裁剪（默认"保留优先级"）</li>
+    <li><b>实现 2.3.1 的自动压缩</b>：五条件触发判定 → 轮次粒度贪心选取 → 结构化摘要 → 三级降级链 → 摘要缓存与 dirty 失效</li>
+    <li>上下文用量进度条 + 压缩灰条（可展开摘要）+ "立即压缩"按钮</li>
+    <li>导出 Markdown / JSON</li>
+  </ul>
+  <div class="io">
+    <div><h5>产出</h5><ul>
+      <li><code>server/store.py</code>、<code>context.py</code></li>
+      <li><code>data/app.db</code>（三表 + 索引 + 压缩字段）</li>
+      <li>完整的会话侧边栏与压缩可视化</li>
+    </ul></div>
+    <div><h5>验收（可验证）</h5><ul class="ck">
+      <li>刷新页面、重启后端后历史仍在，切换会话能完整恢复</li>
+      <li>连续 20 轮长对话不触发推理服务报错，日志显示裁剪/压缩动作</li>
+      <li><b>占用超过 75% 时自动触发一次压缩，压后回落到 45% 以下</b>，且最近 4 轮原文完好</li>
+      <li>人为让摘要请求超时 → 自动降级为抽取式压缩，对话不中断（<code>mode</code> 字段可验证）</li>
+      <li>压缩后数据库消息总数<b>不变</b>（确认压缩只影响发送视图）</li>
+      <li>用量条在超过 85% 时变色并给出提示；导出的 Markdown 格式正常</li>
+      <li>删除会话后 <code>messages</code> 表对应行确实被级联删除</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><span class="pn">P5</span><h3>稳定性、性能与可观测性</h3><span class="pt">1 天</span></div>
+  <p class="goal">把"我的机器上能跑"变成"连续跑一天也不出问题"。</p>
+  <ul class="acts">
+    <li>结构化日志：每次请求记录 TTFT、tps、tokens、显存峰值、是否裁剪</li>
+    <li>参数钳制全量落地：任何越界值都被夹到安全区间并记录</li>
+    <li>推理服务掉线自动重连 + 界面顶部状态条</li>
+    <li>显存溢出、上下文超限、模型未加载三类异常的端到端验证</li>
+    <li>8 小时连续对话的内存与显存漂移观测</li>
+  </ul>
+  <div class="io">
+    <div><h5>产出</h5><ul>
+      <li><code>logs/</code> 下的结构化日志</li>
+      <li>异常矩阵处理表（现象 → 错误码 → 用户可见文案）</li>
+      <li>性能基线记录</li>
+    </ul></div>
+    <div><h5>验收（可验证）</h5><ul class="ck">
+      <li>8 小时压测后后端 RSS 增长 &lt; 100MB（无内存泄漏）</li>
+      <li>人为加载超大 <code>n_ctx</code> → 返回友好提示，不白屏</li>
+      <li>kill 掉推理服务后 30 秒内自动重连，界面状态条转绿</li>
+      <li>日志能还原任意一次请求的完整性能画像</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="ph"><span class="pn">P6</span><h3>离线交付与打包</h3><span class="pt">1 天</span></div>
+  <p class="goal">让第二台完全断网的机器也能在十分钟内跑起来。这是"离线可用"的最终验证。</p>
+  <ul class="acts">
+    <li><code>一键启动.bat</code>：查端口 → 起推理服务 → 轮询 health → 起后端 → 打开浏览器</li>
+    <li><code>pip download -d vendor/wheels -r requirements.txt</code> 预置离线依赖</li>
+    <li>模型文件 + <code>models.sha256</code> 校验清单</li>
+    <li>写 <code>README-离线部署.md</code>：三步走安装说明</li>
+    <li>可选：套 Tauri 壳，产出单文件 exe（见 5.3 方案 B）</li>
+  </ul>
+  <div class="io">
+    <div><h5>产出</h5><ul>
+      <li><code>一键启动.bat</code></li>
+      <li><code>vendor/wheels/</code></li>
+      <li><code>models.sha256</code></li>
+      <li>离线部署说明</li>
+    </ul></div>
+    <div><h5>验收（可验证）</h5><ul class="ck">
+      <li>在一台<b>从未联网</b>的机器上：解压 → 双击 → 浏览器弹出界面 ≤ 10 分钟</li>
+      <li><code>pip install --no-index --find-links vendor/wheels -r requirements.txt</code> 全程成功</li>
+      <li>抓包/防火墙日志确认启动与对话全程 <b>0 次外联</b></li>
+      <li>冷启动到可用 &lt; 15 秒（模型暖机后 &lt; 3 秒）</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="phase opt">
+  <div class="ph"><span class="pn">P7</span><h3>扩展（按需，非必需）</h3><span class="pt">按需</span></div>
+  <p class="goal">界面立住之后再谈扩展。以下每一项都是独立可插拔的，不建议在 P6 之前动手。</p>
+  <ul class="acts">
+    <li><b>多模态</b>：图片上传 → 走支持 vision 的模型（需额外显存，8GB 下与 8B 文本模型难以共存）</li>
+    <li><b>本地知识库</b>：文档切分 → 本地 embedding 模型（bge-small 约 100MB）→ 向量检索 → 拼入上下文</li>
+    <li><b>多模型路由</b>：按任务复杂度自动选小模型或大模型</li>
+    <li><b>工具调用</b>：函数调用 + 本地脚本执行（须限制可执行范围）</li>
+    <li><b>提示词库</b>：可复用的 prompt 模板管理</li>
+  </ul>
+  <div class="io">
+    <div><h5>产出</h5><ul><li>按扩展项独立成模块，不侵入 M1–M3</li></ul></div>
+    <div><h5>验收</h5><ul class="ck"><li>关闭扩展后，P6 的全部验收项仍然通过（可回退性）</li></ul></div>
+  </div>
+</div>
+
+<!-- ============ 4 ============ -->
+<h2 id="s4"><span class="n">4</span>硬件与依赖要求</h2>
+<p class="lead">以下数据来自对本机的实际检测，不是通用建议。换了机器请重算 4.1 的公式。</p>
+
+<h3 id="s41">4.1 本机实测与显存估算</h3>
+
+<div class="kpi">
+  <div><div class="lab">GPU</div><div class="val">RTX 4060<small>Laptop</small></div></div>
+  <div><div class="lab">显存</div><div class="val">8188<small>MiB</small></div></div>
+  <div><div class="lab">内存</div><div class="val">15.2<small>GB</small></div></div>
+  <div><div class="lab">CPU</div><div class="val">R7 7735H<small>16 线程</small></div></div>
+</div>
+
+<p>系统为 Windows 11 家庭版（build 26200），已安装 Python 3.13.14、Node 22.22.2、Git 2.55，但<b>没有 cmake / MSVC / nvcc</b>。这里有三个直接影响方案的判断：</p>
+
+<table class="tight">
+<thead><tr><th style="width:22%">实测发现</th><th style="width:34%">含义</th><th>应对</th></tr></thead>
+<tbody>
+<tr><td>显存 8188 MiB，但桌面合成会占 0.4–0.8GB</td><td><b>实际可用约 7.4GB</b>，不是 8GB</td><td>所有预算按 7.4GB 算，留 0.5GB 余量</td></tr>
+<tr><td>内存仅 15.2GB</td><td>模型加载 + 浏览器 + IDE 同时开容易吃紧，触发换页会突然掉速</td><td>主力模型控制在 8B 以内；有条件升到 32GB，这是性价比最高的一笔升级</td></tr>
+<tr><td>Python 3.13.14</td><td>部分需要编译的科学计算包 wheel 尚不完整，<code>llama-cpp-python</code> 在 3.13 上容易装不上</td><td><b>本方案不需要它</b>——用现成的推理二进制/服务，这正是不走 Python 绑定的核心理由</td></tr>
+<tr><td>无 cmake / MSVC / nvcc</td><td>无法从源码自建 llama.cpp；GitHub Releases 也不可达</td><td><b>推理引擎只能用自带 CUDA 运行时的现成服务</b>，这决定了选 LM Studio</td></tr>
+</tbody>
+</table>
+
+<h4>显存占用估算公式</h4>
+<pre><code>显存占用 ≈ 权重 + KV cache + 计算缓冲
+
+权重        ≈ 参数量 × 每参数字节数
+              Q4_K_M ≈ 0.55 字节/参数   → 8B ≈ 4.7GB
+              Q5_K_M ≈ 0.70 字节/参数   → 8B ≈ 5.9GB
+              FP16   ≈ 2.00 字节/参数   → 8B ≈ 16GB（本机不可行）
+
+KV cache    ≈ 2 × 层数 × KV头数 × head_dim × ctx × 字节宽
+              以 Qwen3-8B（36 层 / 8 个 KV 头 / head_dim 128 / FP16）为例：
+              2 × 36 × 8 × 128 × 2 = 147,456 B ≈ 144 KiB / token
+              8k ≈ 1.18 GB    16k ≈ 2.36 GB    32k ≈ 4.72 GB
+              KV 量化到 q8_0（1 字节/元素）后减半：32k ≈ 2.36 GB
+
+计算缓冲    ≈ 0.5 – 0.9 GB（随 batch 与 ctx 增长）</code></pre>
+
+<table>
+<thead><tr><th style="width:26%">配置</th><th class="num">权重</th><th class="num">KV cache</th><th class="num">缓冲</th><th class="num">合计</th><th>结论</th></tr></thead>
+<tbody>
+<tr><td>8B · Q4_K_M · 8k ctx（KV f16）</td><td class="num">4.7</td><td class="num">1.18</td><td class="num">0.7</td><td class="num">6.6 GB</td><td><b style="color:var(--ok)">✅ 舒适</b>，余 0.8GB</td></tr>
+<tr><td>8B · Q4_K_M · 16k ctx（KV f16）</td><td class="num">4.7</td><td class="num">2.36</td><td class="num">0.7</td><td class="num">7.8 GB</td><td><b style="color:var(--warn)">⚠️ 临界</b>，需开 flash-attn 并关掉其它占 GPU 的程序</td></tr>
+<tr><td>8B · Q4_K_M · 32k ctx（KV f16）</td><td class="num">4.7</td><td class="num">4.72</td><td class="num">0.8</td><td class="num">10.2 GB</td><td><b style="color:var(--danger)">❌ 溢出</b> 1.4GB，必然部分卸载到 CPU</td></tr>
+<tr><td><b>8B · Q4_K_M · 32k（KV q8_0）</b><br><span style="color:var(--accent);font-size:12px">当前选定</span></td><td class="num">4.7</td><td class="num">2.36</td><td class="num">0.6</td><td class="num">7.3–7.6 GB</td><td><b style="color:var(--warn)">⚠️ 临界</b>，开 flash-attn 才压到线内；装不下就退 16k</td></tr>
+<tr><td>8B · Q4_K_M · 32k（KV q4_0）</td><td class="num">4.7</td><td class="num">1.18</td><td class="num">0.6</td><td class="num">6.5 GB</td><td><b style="color:var(--ok)">✅ 舒适</b>，代价是长文召回明显变差</td></tr>
+<tr><td>14B · Q4_K_M · 4k ctx</td><td class="num">8.4</td><td class="num">0.6</td><td class="num">0.8</td><td class="num">9.8 GB</td><td><b style="color:var(--warn)">⚠️ 需卸载 3–4 层</b>，实测约 8–12 t/s</td></tr>
+<tr><td>4B · Q4_K_M · 16k ctx</td><td class="num">2.5</td><td class="num">1.1</td><td class="num">0.6</td><td class="num">4.2 GB</td><td><b style="color:var(--ok)">✅ 很宽裕</b>，可留出显存给多模态扩展</td></tr>
+</tbody>
+</table>
+
+<h3 id="s42">4.2 模型档位与操作系统兼容性</h3>
+
+<table class="tight">
+<thead><tr><th style="width:10%">档位</th><th style="width:24%">代表模型</th><th class="num">显存</th><th class="num">建议 ctx</th><th class="num">预期速度</th><th>适用</th></tr></thead>
+<tbody>
+<tr><td><b>轻量</b></td><td>Qwen3-4B / Qwen2.5-3B · Q4_K_M</td><td class="num">~2.5 GB</td><td class="num">16k</td><td class="num">45–60 t/s</td><td>快速问答、高频迭代、给多模态留显存</td></tr>
+<tr><td><b>主力</b><br><span style="color:var(--accent);font-size:12px">推荐</span></td><td>Qwen3-8B / Qwen2.5-7B-Instruct · Q4_K_M</td><td class="num">~4.7 GB</td><td class="num">8k</td><td class="num">25–40 t/s</td><td>通用对话、写代码、日常主力</td></tr>
+<tr><td><b>进阶</b></td><td>Qwen3-14B · Q4_K_M</td><td class="num">~8.4 GB</td><td class="num">4k</td><td class="num">8–12 t/s</td><td>质量优先、能接受慢；需部分 CPU 卸载</td></tr>
+<tr><td><b>不可行</b></td><td>32B+ / FP16</td><td class="num">&gt;16 GB</td><td class="num">—</td><td class="num">&lt;3 t/s</td><td>超出本机与 15GB 内存的能力边界</td></tr>
+</tbody>
+</table>
+<p style="font-size:13px;color:var(--muted)">速度为 4060 Laptop 单请求、FP16 KV cache、flash-attn 开启下的估算区间，实机以 P1 的实测记录为准。批量请求会显著降低单请求速度。</p>
+
+<h4>依赖清单（最小集）</h4>
+<table class="tight">
+<thead><tr><th style="width:16%">类别</th><th style="width:34%">内容</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>Python 包</td><td><b>无</b></td><td>全部走标准库：<code>http.server</code> / <code>http.client</code> / <code>sqlite3</code> / <code>json</code>。断网机器也能直接跑</td></tr>
+<tr><td>系统依赖</td><td>Python 3.9+</td><td>实测 3.13.14 正常；不装任何第三方包，故不存在 wheel 兼容问题</td></tr>
+<tr><td>推理服务</td><td>LM Studio（自带 CUDA 运行时）</td><td>提供 OpenAI 兼容 <code>/v1</code>，默认 127.0.0.1:1234</td></tr>
+<tr><td>模型</td><td><code>Qwen3-8B-Q4_K_M.gguf</code></td><td>4.68GB 磁盘；32k 需 KV 量化 q8_0</td></tr>
+<tr><td>前端库</td><td><b>无</b></td><td>Markdown 与高亮自写，<code>web/vendor/</code> 已弃用——<b>禁止 CDN</b>，也避免多 200KB 依赖</td></tr>
+<tr><td>浏览器</td><td>Edge / Chrome 近两年版本</td><td>需支持 <code>ReadableStream</code>（即所有现代浏览器）</td></tr>
+</tbody>
+</table>
+
+<h4>操作系统兼容性</h4>
+<table class="tight">
+<thead><tr><th style="width:22%">组件</th><th style="width:20%">Windows 10/11</th><th style="width:20%">macOS (Apple Silicon)</th><th>Linux</th></tr></thead>
+<tbody>
+<tr><td>LM Studio</td><td>✅ CUDA / Vulkan / CPU</td><td>✅ Metal</td><td>✅ CUDA / ROCm</td></tr>
+<tr><td>llama-server（备选）</td><td>✅ 需自行获取二进制</td><td>✅ Metal</td><td>✅ CUDA / ROCm</td></tr>
+<tr><td>本方案后端</td><td>✅ 无需改动</td><td>✅ 无需改动</td><td>✅ 无需改动</td></tr>
+<tr><td>启动脚本</td><td><code>.bat</code> / <code>.ps1</code></td><td>需换 <code>.command</code></td><td>需换 <code>.sh</code></td></tr>
+<tr><td>平台注意点</td><td>长路径、防火墙首次弹窗、杀软对未签名 exe 的拦截</td><td>统一内存架构，8GB 机型跑 8B 需谨慎</td><td>需正确安装 NVIDIA 驱动与 CUDA runtime</td></tr>
+</tbody>
+</table>
+<p>因为后端与前端都是纯 Python + 纯 Web，<b>跨平台成本只在启动脚本这一层</b>。这也是选本地 Web UI 而非原生桌面应用的一个附带好处。</p>
+
+<!-- ============ 5 ============ -->
+<h2 id="s5"><span class="n">5</span>风险点与备选方案</h2>
+<p class="lead">风险按"如果发生，项目会卡多久"排序。前四条是必然会遇到的，不是可能遇到的。</p>
+
+<table>
+<thead><tr><th style="width:5%">#</th><th style="width:19%">风险</th><th style="width:7%">等级</th><th style="width:24%">触发信号</th><th style="width:23%">缓解措施</th><th>备选方案</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><b>显存溢出 OOM</b></td><td><span class="sev s-h">高</span></td><td>加载即失败，或对话中途推理服务退出</td><td><code>n_ctx</code> 做成档位 + 后端二次校验；启动前查显存余量；捕获异常转成"建议降到 4k 或换 4B 模型"</td><td>降低量化（Q4→Q3）、减少 GPU 卸载层数、换更小的模型</td></tr>
+<tr><td>2</td><td><b>流式被缓冲</b></td><td><span class="sev s-h">高</span></td><td>首字延迟等于总生成时长，文字整段蹦出</td><td>三个 SSE 响应头写死；<code>httpx</code> 用 <code>aiter_lines</code> 逐行 yield；前端不加任何中间层</td><td>改用 WebSocket（复杂度上升，一般不需要）</td></tr>
+<tr><td>3</td><td><b>长对话前端卡顿</b></td><td><span class="sev s-m">中</span></td><td>回答超过 1500 字后滚动掉帧、输入延迟</td><td><code>rAF</code> 合并增量；复用单个文本节点；Markdown 与代码高亮延迟到流结束</td><td>超长消息折叠为"展开查看"；虚拟列表</td></tr>
+<tr><td>4</td><td><b>上下文静默截断</b></td><td><span class="sev s-m">中</span></td><td>模型"忘记"前文，答非所问</td><td>服务端预算计算 + 界面显式提示"已省略 N 条" + 用量进度条</td><td>开启摘要压缩（额外一次推理，慢）</td></tr>
+<tr><td>5</td><td>依赖装不上（离线/版本无 wheel）</td><td><span class="sev s-m">中</span></td><td><code>pip install</code> 报编译错误或找不到包</td><td>锁 Python 3.11/3.12；<code>vendor/wheels</code> 预置；不引入需要编译的包</td><td>改用 uv 与锁文件；极端情况用便携版 Python 打包</td></tr>
+<tr><td>6</td><td>端口被局域网访问 / 数据外泄</td><td><span class="sev s-h">高</span></td><td>同网段其它设备能打开界面</td><td>只绑 <code>127.0.0.1</code>（不是 <code>0.0.0.0</code>）；前端零外链；无遥测与版本检查</td><td>加本地 token 校验；防火墙入站规则限制</td></tr>
+<tr><td>7</td><td>杀软误报 / 打包失败</td><td><span class="sev s-l">低</span></td><td>双击 exe 被拦、PyInstaller 产物缺失 dll</td><td>优先用 <code>.bat</code> + 便携 Python，不做单文件打包</td><td>改用 Tauri 壳（5.3 方案 B）</td></tr>
+<tr><td>8</td><td>模型许可限制</td><td><span class="sev s-l">低</span></td><td>商用分发时许可不允许</td><td>记录模型来源与许可证到 <code>models.yaml</code>；优先选 Apache-2.0 许可的模型</td><td>替换为许可更宽松的同档模型</td></tr>
+<tr><td>9</td><td>并发打爆显存</td><td><span class="sev s-m">中</span></td><td>第二个人同时提问即 OOM 或极慢</td><td><code>asyncio.Lock</code> 串行化推理请求 + 排队提示；明确告知"当前为单人模式"</td><td>llama-server <code>--parallel</code> 多 slot；真要多并发换 vLLM + 更大显存</td></tr>
+<tr><td>10</td><td>Windows 中文路径 / 编码</td><td><span class="sev s-l">低</span></td><td>启动脚本乱码、bat 执行失败</td><td>脚本全 UTF-8 无 BOM；路径一律加引号；避免中文目录名</td><td>改用 PowerShell 脚本（对 UTF-8 支持更好）</td></tr>
+</tbody>
+</table>
+
+<h3>5.3 三个备选架构</h3>
+
+<table>
+<thead><tr><th style="width:16%">方案</th><th style="width:30%">做法</th><th style="width:22%">优势</th><th>代价与适用</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>A · 零后端<br>纯静态</b></td>
+  <td>单个 <code>index.html</code> 直连推理服务；给 LM Studio 开 CORS；历史存 IndexedDB</td>
+  <td>30 分钟可出 MVP，依赖数为 0</td>
+  <td>无服务端上下文裁剪、无参数钳制、多标签页数据不同步、CORS 敞开。适合<b>快速验证想法</b>，不适合长期用</td>
+</tr>
+<tr>
+  <td><b>B · Tauri 桌面壳</b></td>
+  <td>复用同一套前端，Tauri（Rust + WebView2）打包为 exe，后端逻辑用 Rust 侧命令或仍走本地 HTTP</td>
+  <td>单文件分发、托盘常驻、体积约 10MB、启动快</td>
+  <td>多一层 Rust 构建链，Windows 需 WebView2 运行时。<b>建议 P6 之后再套壳</b>，不要一开始就上</td>
+</tr>
+<tr>
+  <td><b>C · 现成方案改造</b></td>
+  <td>Open WebUI / text-generation-webui / Gradio 三十行</td>
+  <td>当天可用，功能齐全</td>
+  <td>Open WebUI 依赖 Docker（离线打包麻烦）；Gradio 定制受限且依赖较重。适合<b>先解决"有没有"</b>，再决定要不要自建</td>
+</tr>
+</tbody>
+</table>
+
+<div class="note">
+  <span class="tag">路径建议</span>
+  <p>如果时间紧，最务实的走法是：<b>先用方案 C 里的 Gradio 三十行版本跑两天</b>，真实用起来，记录下自己到底在意哪些参数、上下文多久会溢出、哪些交互别扭。这些体感数据会直接决定自建时 M1–M3 的优先级排序——比现在拍脑袋设计要准得多。然后按 P2→P6 自建，P1 因为推理服务已经跑起来了可以顺带完成。</p>
+</div>
+
+<!-- ============ 6 ============ -->
+<h2 id="s6"><span class="n">6</span>需要你确认的关键问题</h2>
+<p class="lead">以下问题会实质改变方案内容。标注了影响范围，你可以只回答最在意的几条。</p>
+
+<table>
+<thead><tr><th style="width:5%">#</th><th style="width:32%">问题</th><th style="width:14%">影响阶段</th><th>为什么重要 / 我的默认假设</th></tr></thead>
+<tbody>
+<tr><td>Q1</td><td><b>目标模型规模与具体模型？</b>7B/8B 还是想跑 14B？偏好 Qwen、Llama 还是别的？</td><td>P0 · P1</td><td>直接决定显存预算与速度预期。<b>默认假设：Qwen3-8B Q4_K_M，8k ctx</b></td></tr>
+<tr><td>Q2</td><td><b>并发人数？</b>只有你自己，还是 3–5 人同时用？</td><td>P2 · P5</td><td>单人要串行队列即可；多人则需考虑 <code>--parallel</code> 多 slot 或换更大显存的机器。<b>默认假设：单人</b></td></tr>
+<tr><td>Q3</td><td><b>是否需要多模态</b>（图片输入）或语音？</td><td>P0 · P7</td><td>视觉模型会额外吃 1–2GB 显存，8GB 下与 8B 文本模型很难共存，可能需要降到 4B。<b>默认假设：纯文本</b></td></tr>
+<tr><td>Q4</td><td><b>是否需要知识库 / RAG？</b>要检索的是本地文档还是代码仓库？</td><td>P7</td><td>需要本地 embedding 模型（约 100–600MB）与分块检索逻辑，是一个独立子系统。<b>默认假设：暂不需要</b></td></tr>
+<tr><td>Q5</td><td><b>交付形态偏好？</b>浏览器界面够用，还是必须双击一个 exe？</td><td>P6</td><td>决定是否需要引入 Tauri 构建链。<b>默认假设：浏览器即可</b></td></tr>
+<tr><td>Q6</td><td><b>是否只在 Windows 上使用？</b>需要兼顾 macOS 或 Linux 吗？</td><td>P6</td><td>影响启动脚本与打包方式（跨平台成本只在脚本层）。<b>默认假设：仅 Windows</b></td></tr>
+<tr><td>Q7</td><td><b>是否需要工具调用 / 让模型执行操作？</b>（读写文件、跑命令、查数据库）</td><td>P7</td><td>涉及安全边界设计，风险等级与纯对话完全不同。<b>默认假设：仅对话</b></td></tr>
+<tr><td>Q8</td><td><b>会话数据是否需要加密存储或多用户隔离？</b></td><td>P4</td><td>单人场景下 SQLite 明文足够；多人或多设备则要设计身份与加密。<b>默认假设：单人明文</b></td></tr>
+</tbody>
+</table>
+
+<div class="note">
+  <span class="tag">下一步</span>
+  <p>如果上面的默认假设都成立，可以直接从 <b>P0</b> 开始，我可以先把 <code>server/main.py</code>、<code>llm.py</code>、<code>context.py</code> 与前端三件套的骨架一次性写出来，你本地跑通 P1 之后立刻接 P2/P3。如果 Q1 或 Q3 的答案与我假设不同，建议先做 P1 的实测——用真实速度数据来定模型档位，比在纸面上推演可靠得多。</p>
+</div>
+
+<div class="foot">
+  <span>本地 AI 对话与调试界面 · 实施方案 v1.0</span>
+  <span>目标环境：Windows 11 · RTX 4060 Laptop 8GB · 完全离线</span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本地智匣</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="dot" id="healthDot"></span>
+      <span class="bname">本地智匣</span>
+      <span class="bsub" id="healthText">检测中…</span>
+    </div>
+
+    <div class="newrow">
+      <button class="newbtn" id="newChat">
+        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        新对话
+      </button>
+      <button class="pickbtn" id="btnSelect" title="批量选择对话">选择</button>
+    </div>
+
+    <div class="kinds" id="kindBar">
+      <button class="kind active" data-kind="all">全部<b id="kAll">0</b></button>
+      <button class="kind" data-kind="text">语言<b id="kText">0</b></button>
+      <button class="kind" data-kind="image">图片<b id="kImage">0</b></button>
+      <button class="kind" data-kind="video">视频<b id="kVideo">0</b></button>
+    </div>
+
+    <div class="batchbar" id="batchBar" hidden>
+      <label class="chk"><input type="checkbox" id="selAll"><span>全选</span></label>
+      <span class="cnt" id="selCount">未选中</span>
+      <button class="delbtn" id="btnBatchDel" disabled>删除</button>
+      <button class="cancelbtn" id="btnCancelSel">取消</button>
+    </div>
+
+    <div class="slist" id="slist"></div>
+
+    <div class="sidefoot">
+      <div class="gpu" id="gpuInfo"></div>
+      <div class="footline">本地智匣 0.1 · 完全离线</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="iconbtn only-mobile" id="toggleSide" title="会话列表">☰</button>
+      <div class="ttl">
+        <span id="sessTitle">新对话</span>
+        <span class="model-tag" id="modelTag">—</span>
+      </div>
+      <div class="gauge" title="上下文占用">
+        <div class="gbar"><i id="gaugeFill"></i></div>
+        <span id="gaugeLabel">0 / 0</span>
+      </div>
+      <div class="topacts">
+        <button class="ghost" id="btnCompact" title="立即压缩历史上下文">压缩</button>
+        <button class="ghost" id="btnExport" title="导出为 Markdown">导出</button>
+        <button class="ghost" id="btnPanel" title="参数面板">参数</button>
+      </div>
+    </header>
+
+    <div class="stream" id="stream">
+      <div class="empty" id="empty">
+        <h1>开始一段本地对话</h1>
+        <p>模型跑在你这台机器上，请求不出网卡。上下文超过 75% 时历史会被自动压缩成摘要，原始消息仍然完整保留。</p>
+        <div class="chips">
+          <button class="chipbtn" data-p="用三句话解释 KV cache 是什么，以及它为什么吃显存">解释 KV cache</button>
+          <button class="chipbtn" data-p="帮我写一个 Python 函数，把 Markdown 表格转成 CSV，要求处理转义">写个转换函数</button>
+          <button class="chipbtn" data-p="这段对话如果继续下去，上下文会怎么增长？给一个估算方法">估算上下文</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="genarea" id="genarea" hidden>
+      <div class="genintro" id="genIntro">
+        <h1>用本地模型生成画面</h1>
+        <p>在下面写提示词，生成过程会实时显示阶段与步数进度。产物分别保存在 <code>data\图片</code> 与 <code>data\视频</code>，每次生成都附一份参数记录。</p>
+      </div>
+      <div class="genbar" id="genBar" hidden>
+        <code class="genpath" id="genPath"></code>
+        <button class="ghost" id="btnOpenFolder">打开文件夹</button>
+      </div>
+      <div class="genlist" id="genList"></div>
+    </div>
+
+    <div class="composer">
+      <div class="cwrap">
+        <textarea id="input" rows="1" placeholder="输入消息，Enter 发送 / Shift+Enter 换行"></textarea>
+        <div class="cbar">
+          <span class="hint" id="hint">Esc 停止生成</span>
+          <button class="send" id="btnSend">发送</button>
+          <button class="stop" id="btnStop" hidden>停止</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="panel" id="panel">
+    <div class="phead">
+      <span>参数</span>
+      <button class="iconbtn" id="closePanel">×</button>
+    </div>
+    <div class="pbody">
+      <label class="field">
+        <span>模型 <em id="modelLock" class="locknote" hidden>已绑定，不可更换</em></span>
+        <select id="pModel"></select>
+        <small id="modelHint" class="fieldhint"></small>
+      </label>
+      <div id="textParams">
+      <label class="field">
+        <span>上下文预算</span>
+        <select id="pCtx">
+          <option value="4096">4k（最稳）</option>
+          <option value="8192">8k（推荐）</option>
+          <option value="16384">16k（临界）</option>
+        </select>
+        <small id="ctxHint" class="fieldhint"></small>
+      </label>
+      <label class="field">
+        <span>温度 <b id="vTemp">0.70</b></span>
+        <input type="range" id="pTemp" min="0" max="1.5" step="0.05" value="0.7">
+      </label>
+      <label class="field">
+        <span>top_p <b id="vTopP">0.90</b></span>
+        <input type="range" id="pTopP" min="0.1" max="1" step="0.05" value="0.9">
+      </label>
+      <label class="field">
+        <span>最大输出 tokens</span>
+        <input type="number" id="pMaxTok" min="64" max="4096" step="64" value="1024">
+      </label>
+      <label class="field row">
+        <span>展示思考过程</span>
+        <input type="checkbox" id="pThink">
+      </label>
+
+      <div class="psep">自动压缩</div>
+      <label class="field row">
+        <span>启用</span>
+        <input type="checkbox" id="pCompact" checked>
+      </label>
+      <label class="field">
+        <span>触发阈值 <b id="vTrig">75%</b></span>
+        <input type="range" id="pTrig" min="0.5" max="0.9" step="0.05" value="0.75">
+      </label>
+      <label class="field">
+        <span>压缩目标 <b id="vTarget">45%</b></span>
+        <input type="range" id="pTarget" min="0.2" max="0.7" step="0.05" value="0.45">
+      </label>
+      <label class="field">
+        <span>保留最近轮数</span>
+        <input type="number" id="pKeep" min="1" max="12" step="1" value="4">
+      </label>
+
+      <div class="psep">系统提示词</div>
+      <textarea id="pSys" rows="4" placeholder="会话级系统提示词，留空则不附加"></textarea>
+
+      <div class="psep">请求快照</div>
+      <label class="field">
+        <span>记录密度</span>
+        <select id="pSnap">
+          <option value="off">不记录</option>
+          <option value="basic">基础（参数与耗时）</option>
+          <option value="full">完整（含消息序列，可重放）</option>
+        </select>
+        <small class="fieldhint">写入 data/snapshots，按天分文件，纯文本可 diff</small>
+      </label>
+      </div>
+
+      <div id="genParams" hidden>
+        <div class="psep">生成参数</div>
+        <label class="field">
+          <span>分辨率</span>
+          <div class="sizerow">
+            <input type="number" id="gW" min="256" max="1536" step="64" value="512">
+            <span class="sizerow-x">×</span>
+            <input type="number" id="gH" min="256" max="1536" step="64" value="512">
+          </div>
+          <small class="fieldhint" id="sizeHint"></small>
+        </label>
+        <label class="field">
+          <span>采样步数 <b id="vSteps">20</b></span>
+          <input type="range" id="gSteps" min="1" max="50" step="1" value="20">
+          <small class="fieldhint">多步更细腻但更慢；Turbo/LCM 类模型 1–4 步即可</small>
+        </label>
+        <label class="field">
+          <span>CFG 引导 <b id="vCfg">7.0</b></span>
+          <input type="range" id="gCfg" min="1" max="15" step="0.5" value="7">
+        </label>
+        <label class="field">
+          <span>种子 <em class="locknote">留空则随机</em></span>
+          <input type="number" id="gSeed" placeholder="随机" min="0" max="4294967295">
+        </label>
+
+        <div id="videoOnly" hidden>
+          <div class="psep">视频</div>
+          <label class="field">
+            <span>帧数</span>
+            <input type="number" id="gFrames" min="1" max="81" step="4" value="9">
+            <small class="fieldhint">9 帧约 0.6 秒。帧数线性影响耗时与显存</small>
+          </label>
+          <label class="field">
+            <span>帧率 fps</span>
+            <input type="number" id="gFps" min="4" max="30" step="1" value="16">
+          </label>
+        </div>
+
+        <div class="pnote">生成前会自动卸载语言模型以腾出显存。产物按类型存于 data\图片 与 data\视频，每次生成都附带一份参数记录，便于复现。</div>
+      </div>
+
+      <div class="pnote" id="textNote">参数修改后对下一次请求生效，并会保存到当前会话。模型在会话创建时绑定，途中不可更换。</div>
+    </div>
+  </aside>
+
+  <div class="scrim" id="scrim"></div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

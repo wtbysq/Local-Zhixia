@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>自研本地模型管理程序 · 定位与设计方向 v1.0</title>
+<style>
+:root{
+  --ink:#15181d; --ink2:#3b424d; --muted:#6b7480; --faint:#8d95a0;
+  --line:#e2e6ea; --line2:#eef1f3; --bg:#fbfbfa; --card:#ffffff;
+  --accent:#0f6b5c; --accent2:#0a4f44; --asoft:#e9f3f0; --aline:#bcdcd3;
+  --warn:#9a5b0b; --wsoft:#fdf4e5; --wline:#f0dcb8;
+  --danger:#a8342a; --dsoft:#fdeeec; --dline:#f3cfca;
+  --mono:"Cascadia Mono","JetBrains Mono",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif;
+  font-size:15px;line-height:1.78;letter-spacing:.005em}
+.wrap{max-width:1000px;margin:0 auto;padding:56px 32px 96px}
+p{margin:0 0 14px}
+a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--aline)}
+.hero{border-bottom:2px solid var(--ink);padding-bottom:26px;margin-bottom:34px}
+.kicker{font-size:12px;letter-spacing:.22em;color:var(--accent);font-weight:600;margin-bottom:14px}
+h1{font-size:34px;line-height:1.28;margin:0 0 16px;font-weight:700;letter-spacing:-.02em}
+.sub{font-size:16px;color:var(--ink2);max-width:800px;margin-bottom:20px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:12.5px;padding:4px 11px;border:1px solid var(--line);border-radius:999px;color:var(--ink2);background:var(--card)}
+.chip b{font-weight:600;color:var(--ink)}
+.toc{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:22px 26px;margin-bottom:46px}
+.toc h4{margin:0 0 14px;font-size:12px;letter-spacing:.18em;color:var(--muted);font-weight:600}
+.toc ol{margin:0;padding-left:0;list-style:none;columns:2;column-gap:40px}
+.toc li{margin-bottom:7px;font-size:14px;break-inside:avoid}
+.toc li span{display:inline-block;width:26px;color:var(--faint);font-variant-numeric:tabular-nums;font-size:12.5px}
+h2{font-size:23px;margin:54px 0 8px;font-weight:700;letter-spacing:-.01em;padding-top:8px}
+h2 .n{display:inline-block;min-width:38px;color:var(--accent);font-variant-numeric:tabular-nums}
+h2+.lead{color:var(--muted);font-size:14.5px;margin-bottom:22px}
+h3{font-size:17px;margin:34px 0 10px;font-weight:600}
+h4{font-size:14px;margin:20px 0 8px;font-weight:600;color:var(--ink2)}
+table{width:100%;border-collapse:collapse;margin:14px 0 22px;font-size:13.5px;line-height:1.62}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#f3f5f6;font-weight:600;color:var(--ink2);white-space:nowrap}
+tbody tr:nth-child(even) td{background:#fcfcfc}
+.tight td,.tight th{padding:7px 10px}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+code{font-family:var(--mono);font-size:12.8px;background:#f2f4f5;padding:1.5px 5px;border-radius:3px;color:#1d2b2f}
+.note{border-left:3px solid var(--accent);background:var(--asoft);padding:14px 18px;margin:18px 0 22px;border-radius:0 4px 4px 0;font-size:14px}
+.note.warn{border-left-color:var(--warn);background:var(--wsoft)}
+.note.danger{border-left-color:var(--danger);background:var(--dsoft)}
+.note p:last-child{margin-bottom:0}
+.note .tag{display:block;font-size:11.5px;letter-spacing:.14em;font-weight:600;margin-bottom:6px;color:var(--accent2)}
+.pos{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:0 5px 5px 0;padding:20px 24px;margin:22px 0 28px}
+.pos .big{font-size:19px;font-weight:700;line-height:1.5;margin:0 0 10px;letter-spacing:-.01em}
+.pos .big em{font-style:normal;color:var(--accent)}
+.pos p{margin:0;color:var(--ink2);font-size:14px}
+ul.tight-list{margin:10px 0 18px;padding-left:20px}
+ul.tight-list li{margin-bottom:7px}
+.principle{border:1px solid var(--line);border-radius:5px;padding:16px 20px;margin:12px 0;background:var(--card)}
+.principle h4{margin:0 0 6px;font-size:15px;color:var(--ink)}
+.principle .say{font-size:13.6px;color:var(--ink2);margin:0 0 8px}
+.principle .anti{font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;margin:0}
+.principle .anti b{color:var(--danger);font-weight:600}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:3px;vertical-align:1px;margin-right:6px}
+.p0{background:#e6f2ee;color:#0a4f44}
+.p1{background:#eef1f6;color:#3b4a63}
+.p2{background:#f4f1ea;color:#6b5a2e}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+  <div class="kicker">自研本地模型管理程序 · 定位与设计方向</div>
+  <h1>不造一个更小的 LM Studio，<br>造一个它做不了的东西</h1>
+  <p class="sub">LM Studio 已经解决了「把模型跑起来」。它没有解决、也不会去解决的是「跑起来之后，上下文去了哪、这次结果能不能复现、别的程序怎么稳定调用」。这三件事才是我们的立足点。</p>
+  <div class="chips">
+    <span class="chip"><b>定位</b> 本地推理的上下文与资产层</span>
+    <span class="chip"><b>不做</b> 模型广场 / 推理内核 / GUI 中心</span>
+    <span class="chip"><b>原则</b> headless 优先、可替换、可审计</span>
+    <span class="chip"><b>约束</b> 8GB 显存 · 单机 · 离线</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h4>目录</h4>
+  <ol>
+    <li><span>1</span><a href="#s1">为什么照抄一定失败：四条实测证据</a></li>
+    <li><span>2</span><a href="#s2">差异化定位：三个目标</a></li>
+    <li><span>3</span><a href="#s3">核心能力地图（P0 / P1 / P2）</a></li>
+    <li><span>4</span><a href="#s4">与 LM Studio 的三维差异</a></li>
+    <li><span>5</span><a href="#s5">整体架构方向：四层与一条契约</a></li>
+    <li><span>6</span><a href="#s6">六条取舍原则</a></li>
+    <li><span>7</span><a href="#s7">负面清单：明确不做的事</a></li>
+    <li><span>8</span><a href="#s8">从现有代码演进：四个阶段</a></li>
+    <li><span>9</span><a href="#s9">需要你确认的五个问题</a></li>
+  </ol>
+</div>
+
+<h2 id="s1"><span class="n">1</span>为什么照抄一定失败：四条实测证据</h2>
+<p class="lead">这不是理论推演。下面每一条都是刚才在这台机器上真实发生的，耗时 22 分钟，一次都没跑通。</p>
+
+<table class="tight">
+<thead><tr><th style="width:22%">现象</th><th style="width:30%">直接原因</th><th>背后的产品决策</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>lms server start</code> 永久卡在<br>「Waking up LM Studio service...」</td>
+  <td><code>.internal/llmster-pid.lock</code> 里记录 PID 23812，该进程早已不存在；CLI 见锁即认为服务在跑，于是死等，且<b>不报错、不超时</b></td>
+  <td>服务生命周期<b>寄生在 GUI 宿主上</b>。宿主一死，状态就变成无人清理的僵尸</td>
+</tr>
+<tr>
+  <td>首次使用静默下载 1.2 GB 运行时</td>
+  <td>自动拉取 <code>llama.cpp-win-x86_64-nvidia-cuda12-avx2-2.63.0</code>，装到 <code>~/.lmstudio/extensions</code></td>
+  <td>把「运行时版本管理」做成隐式的、用户不可选的自动化</td>
+</tr>
+<tr>
+  <td>下载被中断后任务变成 <code>paused(user)</code>，不再自动恢复</td>
+  <td>CLI 进程被回收，下载任务随之挂起；无重试、无续传提示</td>
+  <td>长任务的状态没有做成<b>独立于前台进程</b>的持久化状态机</td>
+</tr>
+<tr>
+  <td>帮助文档写 <code>--link</code>，实际参数是 <code>-L / --hard-link</code>，按文档执行直接失败</td>
+  <td>CLI 是 GUI 的附庸，参数演进与文档不同步</td>
+  <td>CLI 不是一等公民，只是给自动化留的<b>后门</b>，不是<b>正门</b></td>
+</tr>
+</tbody>
+</table>
+
+<div class="note warn">
+<span class="tag">关键判断</span>
+<p>这四条都不是「LM Studio 做得差」，而是它<b>明确选择了另一种优先级</b>：把「点两下就能用」放在「可诊断、可编排、可嵌入」之上。对它的目标用户（想试试模型效果的人）这是对的。</p>
+<p>但这也划出了一条清晰的分界线：<b>只要我们的用户是「要长期用、要接进自己工具链、要知道每次请求发生了什么」的人，LM Studio 的每一个优点都会变成我们的阻力。</b>照抄它，等于把它的取舍连同它的天花板一起继承过来。</p>
+</div>
+
+<h2 id="s2"><span class="n">2</span>差异化定位：三个目标</h2>
+<p class="lead">三个目标必须能互相印证，否则就是三个功能而不是一个定位。</p>
+
+<div class="pos">
+  <p class="big">我们做的不是「模型管理器」，是<em>本地推理的上下文与资产层</em>。</p>
+  <p>模型怎么加载、用哪套 kernel、支不支持某种量化——这些是执行层的事，应当交给可替换的引擎。我们负责的是引擎<b>不关心</b>的那一层：一次对话里上下文预算是多少、被压缩掉了什么、这次结果用了哪些参数、三个月后还能不能原样重放。</p>
+</div>
+
+<h3>目标一：上下文可解释（Context Transparency）</h3>
+<p>现有实现已经跑通了自动压缩（五条件触发、轮次粒度、三级降级链），但那是「引擎能力」，还不是「产品能力」。产品化意味着：每一次压缩都要能回答四个问题——<b>谁触发的、依据是什么、压缩前多少 token、压缩后丢了什么</b>。上下文用量必须随时可见，而不是等模型「忘记」前文才被怀疑。</p>
+<p>这是 LM Studio 结构上不会做的：它的定位是模型运行器，上下文对它是黑盒参数。</p>
+
+<h3>目标二：过程可复现（Reproducibility）</h3>
+<p>每次生成都落一份<b>请求快照</b>：完整参数、裁剪与压缩决策、实际发送的消息序列、耗时、首字延迟、token 数、结束原因（正常 / 中止 / 断连）。快照可以「重放」——用当时的参数和当时的上下文再跑一次。</p>
+<p>这条能力把工具从「聊天框」变成「实验记录」。调试模型行为、对比参数、复现一个奇怪的输出，靠的都是它。LM Studio 的聊天记录不保存这些，因为它的聊天是<b>体验</b>，我们的聊天是<b>实验</b>。</p>
+
+<h3>目标三：能力可嵌入（Headless-First Composability）</h3>
+<p>所有能力先有 CLI 与 HTTP 契约，再有界面。核心进程不依赖任何 GUI 存活，关掉浏览器、关掉窗口，服务照常。反过来也必须成立：界面只是契约的一个消费者，任何一个界面操作都能在命令行里找到等价命令。</p>
+<p>这条是直接针对第 1 节那个僵尸锁问题的结构性回答——不是修一个 bug，是让这类 bug 不可能存在。</p>
+
+<h2 id="s3"><span class="n">3</span>核心能力地图</h2>
+<p class="lead">按「是否强化上述三个目标」筛选，而不是按「竞品有没有」筛选。</p>
+
+<table>
+<thead><tr><th style="width:8%">级别</th><th style="width:22%">能力</th><th style="width:38%">具体形态</th><th>它强化了哪个目标</th></tr></thead>
+<tbody>
+<tr><td><span class="pill p0">P0</span></td><td><b>模型登记与校验</b></td><td>不下载模型，只登记本地 gguf：解析 GGUF 元数据（层数 / KV 头数 / head_dim / 原生 ctx / 量化类型），算 sha256，打能力标签，估算显存占用</td><td>可复现（模型指纹固定）<br>可解释（显存预算有依据）</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td><b>上下文引擎</b></td><td>预算计算 + 自动压缩 + 三级降级 + 压缩事件审计（before/after/mode/reason）</td><td>可解释（核心）</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td><b>请求快照与重放</b></td><td>每次生成落一份 JSONL 快照；<code>replay &lt;snapshot_id&gt;</code> 用原参数重跑</td><td>可复现（核心）</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td><b>CLI 一等公民</b></td><td><code>model add|list|verify</code> / <code>chat</code> / <code>ctx inspect</code> / <code>snapshot ls|replay</code> / <code>serve</code> / <code>doctor</code></td><td>可嵌入（核心）</td></tr>
+<tr><td><span class="pill p1">P1</span></td><td><b>运行时编排（适配器）</b></td><td>统一 OpenAI 兼容契约；健康检查、端口协商、僵尸锁自愈、崩溃重启、显存探测；换引擎只改一个配置块</td><td>可嵌入<br>不绑定任何厂商</td></tr>
+<tr><td><span class="pill p1">P1</span></td><td><b>会话资产化</b></td><td>会话可导出为可 diff 的 Markdown + JSONL；数据库只存索引与原文，不做二进制黑盒</td><td>可复现（长期可用）</td></tr>
+<tr><td><span class="pill p1">P1</span></td><td><b>诊断器</b></td><td><code>doctor</code> 把依赖 / 端口 / 代理 / 模型 / 显存逐项判定，输出「结论 + 修复动作」</td><td>可解释（运维侧）</td></tr>
+<tr><td><span class="pill p2">P2</span></td><td>多会话工作区</td><td>按项目分目录，每个工作区独立配置与模型集</td><td>可嵌入（团队协作前的最低成本扩展）</td></tr>
+<tr><td><span class="pill p2">P2</span></td><td>Web UI</td><td>只做三块：会话流、上下文仪表、快照抽屉</td><td>不是能力，是上述能力的显示器</td></tr>
+</tbody>
+</table>
+
+<div class="note">
+<span class="tag">判断标准</span>
+<p>任何新功能进 P0/P1 之前，必须能回答：<b>它让「上下文可解释 / 过程可复现 / 能力可嵌入」三者中的哪一个更强？</b>答不出来就不做。这条标准会把 80% 的「别人有我们也要有」挡在门外。</p>
+</div>
+
+<h2 id="s4"><span class="n">4</span>与 LM Studio 的三维差异</h2>
+
+<h3>4.1 功能范围</h3>
+<table class="tight">
+<thead><tr><th style="width:26%">维度</th><th style="width:37%">LM Studio</th><th>我们</th></tr></thead>
+<tbody>
+<tr><td>模型获取</td><td>内置模型广场 + 下载器 + Hub 生态</td><td><b>不做</b>。只登记本地文件，下载交给浏览器或外部工具</td></tr>
+<tr><td>模型执行</td><td>捆绑并自动管理 llama.cpp 运行时</td><td><b>不做内核</b>。执行层是适配器，引擎由用户指定路径或端点</td></tr>
+<tr><td>上下文</td><td>一个上下文长度参数</td><td><b>一等公民</b>：预算、压缩、审计、可视化</td></tr>
+<tr><td>会话</td><td>聊天记录，界面内可读</td><td><b>实验记录</b>：快照、重放、可 diff 导出</td></tr>
+<tr><td>接口</td><td>GUI 为主，CLI 为辅</td><td><b>契约为先</b>，GUI 只是消费者</td></tr>
+<tr><td>多用户</td><td>无（桌面单人）</td><td>无（明确不做 RBAC / 计费）</td></tr>
+</tbody>
+</table>
+
+<h3>4.2 架构思路</h3>
+<table class="tight">
+<thead><tr><th style="width:24%">结构问题</th><th style="width:36%">LM Studio 的答案</th><th>我们的答案</th></tr></thead>
+<tbody>
+<tr><td>谁是中心</td><td>Electron GUI 是中心，服务寄生于它</td><td><b>无 GUI 的核心进程</b>是中心，UI 是可选客户端</td></tr>
+<tr><td>进程生命周期</td><td>关窗口即可能断服务；状态靠 pid 锁</td><td>服务独立常驻；锁带<b>存活校验</b>，僵尸锁自动回收</td></tr>
+<tr><td>引擎耦合</td><td>深度绑定自家运行时包（含版本升级策略）</td><td><b>适配器</b>：一个 <code>adapter</code> 接口，多个实现，配置文件选择</td></tr>
+<tr><td>状态存储</td><td>私有 JSON + SQLite 混合，格式不对外承诺</td><td>契约化的 schema + 纯文本导出，格式对外承诺</td></tr>
+<tr><td>失败表现</td><td>静默等待或静默降级</td><td>一律<b>显式失败</b>：错误码 + 原因 + 一条可执行修复命令</td></tr>
+</tbody>
+</table>
+
+<h3>4.3 用户体验</h3>
+<table class="tight">
+<thead><tr><th style="width:24%">场景</th><th style="width:36%">LM Studio（探索型）</th><th>我们（工作流型）</th></tr></thead>
+<tbody>
+<tr><td>第一次打开</td><td>模型广场，挑一个下载</td><td><b>什么都不下载</b>，先把本机已有的模型登记进来，看它们的显存预算</td></tr>
+<tr><td>日常入口</td><td>双击应用图标</td><td>命令行一条 <code>chat</code>，或浏览器书签；两者等价</td></tr>
+<tr><td>信息密度</td><td>低。参数藏在设置里</td><td>高。<b>每次回答旁边就有</b>：用了多少 token、压缩了什么、多快</td></tr>
+<tr><td>出问题时</td><td>看日志文件，或重装</td><td>一条 <code>doctor</code>，直接给结论和下一步</td></tr>
+<tr><td>「我的数据在哪」</td><td>App 数据目录，格式私有</td><td>工作目录下，<b>Markdown / JSONL / SQLite 全部可读可备份</b></td></tr>
+</tbody>
+</table>
+
+<h2 id="s5"><span class="n">5</span>整体架构方向：四层与一条契约</h2>
+<p class="lead">关键不是分几层，而是<b>哪一层允许被替换</b>。</p>
+
+<table>
+<thead><tr><th style="width:12%">层</th><th style="width:20%">职责</th><th style="width:34%">可替换性</th><th>失败时的表现</th></tr></thead>
+<tbody>
+<tr><td><b>L0 资产层</b></td><td>模型登记、元数据解析、指纹、能力标签、显存估算</td><td>实现可换，<b>数据格式必须稳定</b>（对外承诺 schema）</td><td>模型不可用 → 明确列出缺什么，不猜</td></tr>
+<tr><td><b>L1 执行层</b></td><td>把「一次推理请求」翻译成具体引擎的调用</td><td><b>完全可替换</b>。适配器接口 + 多实现，靠配置切换</td><td>引擎挂了 → 返回具体错误码，不静默重试</td></tr>
+<tr><td><b>L2 上下文层</b></td><td>预算、压缩、裁剪、快照生成</td><td><b>不可替换，是我们本身</b></td><td>压缩失败 → 降级链兜底，绝不中断对话</td></tr>
+<tr><td><b>L3 接口层</b></td><td>HTTP + SSE、CLI、Web UI、导出</td><td>UI 可换；<b>HTTP/CLI 契约是对外承诺</b></td><td>客户端断开 → 已生成内容照常落盘</td></tr>
+</tbody>
+</table>
+
+<p>贯穿四层的只有一条契约：<b>一次请求 = 一份可完整重建的输入 + 一份完整记录的输出</b>。L0 提供模型指纹，L2 产出实际发送的消息序列，L1 只负责执行，L3 负责把这个过程暴露出去。压缩之所以能做对，是因为它发生在 L2、看得见 L0 的预算、又不需要知道 L1 是谁。</p>
+
+<div class="note">
+<span class="tag">这条架构的直接收益</span>
+<p>换执行引擎（今天用 A，明天想试 B）只动 L1 的一个适配器与一行配置；L2 的压缩策略、L3 的界面、L0 的登记数据<b>一行都不用改</b>。这正是「不绑死任何厂商」在工程上的具体含义，而不是一句口号。</p>
+</div>
+
+<h2 id="s6"><span class="n">6</span>六条取舍原则</h2>
+<p class="lead">原则的作用不是指导「做什么」，而是事后能用来解释「为什么当时没做那个」。</p>
+
+<div class="principle">
+  <h4>原则一 · 可诊断 &gt; 自动化</h4>
+  <p class="say">任何自动行为都必须留下可读的决策记录：谁触发、依据是什么、before / after 各是多少。自动但不可解释，比手动更危险。</p>
+  <p class="anti"><b>反例：</b>自动降级上下文长度却不提示——用户只会觉得「模型变笨了」。</p>
+</div>
+
+<div class="principle">
+  <h4>原则二 · 可替换 &gt; 一体化</h4>
+  <p class="say">凡是「别人的东西」，都必须收在一个适配器后面。判断标准很简单：换掉它要改几个文件？超过一个就是设计错了。</p>
+  <p class="anti"><b>反例：</b>把某个引擎的专有参数写进核心逻辑，换引擎时全线塌方。</p>
+</div>
+
+<div class="principle">
+  <h4>原则三 · 文本可审计 &gt; 二进制黑盒</h4>
+  <p class="say">配置、会话、快照一律用可读文本或标准 SQLite，<b>能 diff、能 grep、能进 git</b>。私有二进制格式等于把用户锁死在你的版本上。</p>
+  <p class="anti"><b>反例：</b>把会话打包成自定义容器，升级一次读不出来。</p>
+</div>
+
+<div class="principle">
+  <h4>原则四 · 薄核心 &gt; 大而全</h4>
+  <p class="say">核心只做三件事：资产登记、上下文管理、契约暴露。其余靠组合与外部工具。功能越多，8GB 机器上能跑稳的概率越低。</p>
+  <p class="anti"><b>反例：</b>为了「体验完整」内置下载器，结果引入断点续传、镜像、校验、代理一整套问题——刚才已经见过这套问题长什么样。</p>
+</div>
+
+<div class="principle">
+  <h4>原则五 · headless 优先 &gt; GUI 优先</h4>
+  <p class="say">先有 CLI 与 HTTP，再有界面。任何功能如果在命令行里做不到，就不算做完。核心进程不得依赖任何窗口存活。</p>
+  <p class="anti"><b>反例：</b>服务与宿主进程共生命周期——一条僵尸锁就能让整条链路永久挂起。</p>
+</div>
+
+<div class="principle">
+  <h4>原则六 · 8GB 能跑稳 &gt; 支持最大模型</h4>
+  <p class="say">所有默认值必须在 8GB 显存、15GB 内存上稳。宁可默认 16k 上下文，也不要默认 32k 然后在别人机器上 OOM。</p>
+  <p class="anti"><b>反例：</b>把「支持 200k 上下文」当卖点，实际要 40GB 显存。</p>
+</div>
+
+<h2 id="s7"><span class="n">7</span>负面清单：明确不做的事</h2>
+<p class="lead">写下来的「不做」比「要做」更能定义产品。</p>
+<ul class="tight-list">
+  <li><b>不做模型广场、不做内置下载器。</b>网络、体积、镜像、合规、版本更新，每一项都是无底洞，且与「可解释」无关。</li>
+  <li><b>不写推理内核。</b>CUDA kernel、量化格式、attention 实现是几十万行 C++ 的领域，重写等于自杀。执行层只做编排。</li>
+  <li><b>不做多用户 / RBAC / 计费 / 配额。</b>目标是小团队自用，这套东西会把架构复杂度抬高一个量级。</li>
+  <li><b>不做插件市场 / 扩展商店。</b>接口开放即可，商店意味着审核、签名、版本兼容矩阵。</li>
+  <li><b>不做 Electron 打包。</b>浏览器就是 UI，省掉 300MB 运行时和一整套进程生命周期问题。</li>
+  <li><b>不做「一键导入某个生态」的重集成。</b>保持「你给我文件路径，我登记」这一条最简路径。</li>
+</ul>
+
+<h2 id="s8"><span class="n">8</span>从现有代码演进：四个阶段</h2>
+<p class="lead">现有代码不是推倒重来——L2（上下文引擎）和 L3（接口）已经跑过 37 项测试，正是差异化最核心的部分。要改的是「执行层不该被写死」和「缺 CLI 与快照」。</p>
+
+<table>
+<thead><tr><th style="width:9%">阶段</th><th style="width:32%">动作</th><th>可验证产出</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>E1</b></td>
+  <td>把执行层抽成 <code>adapters/</code>：定义统一接口（health / list / chat_stream / meta），现有 OpenAI 兼容实现变成第一个适配器</td>
+  <td>换 <code>config.json</code> 里一个 <code>adapter</code> 字段即可切换端点，核心代码零改动；<code>doctor</code> 能报出「当前用哪个适配器」</td>
+</tr>
+<tr>
+  <td><b>E2</b></td>
+  <td>加 L0 资产层：<code>models.json</code> 登记表 + GGUF 元数据解析 + sha256 + 显存估算（公式已有，直接复用）</td>
+  <td><code>model add models/xxx.gguf</code> 后 <code>model list</code> 显示：36 层 / 8 KV 头 / 原生 40960 / Q4_K_M / 16k 上下文预估 6.2GB</td>
+</tr>
+<tr>
+  <td><b>E3</b></td>
+  <td>加请求快照与重放：每次生成落 JSONL，<code>snapshot ls / show / replay</code></td>
+  <td>任选一次历史回答，<code>replay</code> 后能拿到参数、消息序列完全一致的请求体</td>
+</tr>
+<tr>
+  <td><b>E4</b></td>
+  <td>UI 收敛：只留会话流 + 上下文仪表 + 快照抽屉；所有操作在 CLI 有等价命令</td>
+  <td>关掉浏览器后服务仍可被 CLI 驱动；界面里每个按钮都能在 <code>--help</code> 里找到对应命令</td>
+</tr>
+</tbody>
+</table>
+
+<div class="note warn">
+<span class="tag">关于已经装在机器上的 LM Studio</span>
+<p>它当前状态：程序安装在 <code>%LOCALAPPDATA%\Programs\LM Studio</code>（0.4.26-4），模型以硬链接方式登记在 <code>~/.lmstudio/models</code>，<b>没有任何进程在运行</b>，你的后端配置仍指向 <code>127.0.0.1:1234</code>。</p>
+<p>按新定位，它<b>不是依赖，最多是 L1 的一个可选适配器实现</b>。三种处置都不影响上面的设计：留着当对照物、卸掉换更轻的引擎、或先留着但配置里默认不启用。这件事等你定第 9 节 Q1 之后一并处理，现在不动它。</p>
+</div>
+
+<h2 id="s9"><span class="n">9</span>需要你确认的五个问题</h2>
+<p class="lead">按你之前的要求，选型先问再做。这五个问题决定 E1 怎么写，其余阶段不受影响。</p>
+
+<table>
+<thead><tr><th style="width:6%">#</th><th style="width:26%">问题</th><th style="width:34%">选项</th><th>影响</th></tr></thead>
+<tbody>
+<tr><td><b>Q1</b></td><td>L1 的第一个执行适配器用谁？</td><td>① llama.cpp 官方 <code>llama-server</code> 二进制（需能下到发布包）<br>② 机器上已有的 <code>llama-server.exe</code>（来自 LM Studio 的运行时包，仅本地使用）<br>③ 任意 OpenAI 兼容端点（先把契约跑通，引擎后定）</td><td>决定 E1 的适配器实现与启动脚本形态</td></tr>
+<tr><td><b>Q2</b></td><td>要不要「模型下载」能力？</td><td>① 完全不做，只登记（我的建议）<br>② 做一个极简的「给定 URL 下载 + 校验」</td><td>决定是否引入网络/续传/镜像一整套复杂度</td></tr>
+<tr><td><b>Q3</b></td><td>请求快照是否进 P0？</td><td>① 是，与上下文引擎同级<br>② 放 P1，先做上下文</td><td>决定存储 schema 是否现在就要定稿</td></tr>
+<tr><td><b>Q4</b></td><td>目标用户范围</td><td>① 只有你自己<br>② 可交付给小团队（需工作区隔离与配置继承）</td><td>决定是否预留多工作区抽象</td></tr>
+<tr><td><b>Q5</b></td><td>演进方式</td><td>① 在现有目录上演进（保留 37 项测试资产）<br>② 新开目录重构，旧代码作参考</td><td>决定 E1 是重构还是增量</td></tr>
+</tbody>
+</table>
+
+<footer>
+本地模型管理程序 · 定位与设计方向 v1.0 &nbsp;|&nbsp; 单文件、无外部依赖，断网可读 &nbsp;|&nbsp; 2026-10-23
+</footer>
+
+</div>
+</body>
+</html>

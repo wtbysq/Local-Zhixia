@@ -1,0 +1,27 @@
+# 运行数据（会话库、快照、生成的图/视频、日志）——不进仓库
+/data/
+/logs/
+
+# 模型权重
+/models/
+
+# 打包中间产物与发布目录
+/build/
+/本地智匣/
+/智匣/
+/_stage_*/
+/_keep_data/
+
+# 推理引擎运行时（llama.cpp / stable-diffusion.cpp + CUDA 库，约 1 GB）
+/runtime/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 工作区元数据
+/.workbuddy/
+
+# 图标生成脚本的预览图
+/desktop/icon-preview.png
