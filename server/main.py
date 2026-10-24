@@ -505,7 +505,9 @@ class Handler(BaseHTTPRequestHandler):
                 frames = int(body.get("frames") or defaults.get("frames") or 9)
             except (TypeError, ValueError):
                 frames = 9
-            frames = max(1, min(81, frames))
+            # 上限放宽到 400：MiniMax-H3 最短就要 124 帧（17k+5）。
+            # 显存是否扛得住由引擎自己报错，这里不再提前砍。
+            frames = max(1, min(400, frames))
 
         req = {
             "prompt": prompt,

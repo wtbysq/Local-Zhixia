@@ -69,6 +69,20 @@ JOBS = [
      "file": "vae/qwen_image_2.1_vae_bf16.safetensors",
      "dest": "models/image/qwen-image-2.1/qwen_image_2.1_vae_bf16.safetensors",
      "size": 680000000},
+    # 视频：MiniMax-H3（音视频联合）。本机 15 GB 内存装不下这套 34.8 GB 权重，
+    # 下载只是先存着，换 48 GB 内存 / 24 GB 显存的机器才能跑。
+    {"name": "h3-diff", "repo": "unsloth/MiniMax-H3-GGUF",
+     "file": "minimax_h3_fl2va_pruned-Q4_K.gguf",
+     "dest": "models/video/minimax-h3/minimax_h3_fl2va_pruned-Q4_K.gguf", "size": 11420000000},
+    {"name": "h3-te", "repo": "unsloth/MiniMax-H3-GGUF",
+     "file": "qwen3vl_32b_minimax_h3-Q4_K_M.gguf",
+     "dest": "models/video/minimax-h3/qwen3vl_32b_minimax_h3-Q4_K_M.gguf", "size": 18220000000},
+    {"name": "h3-vae", "repo": "Comfy-Org/MiniMax-H3",
+     "file": "vae/minimax_h3_video_vae_fp16.safetensors",
+     "dest": "models/video/minimax-h3/minimax_h3_video_vae_fp16.safetensors", "size": 5210000000},
+    {"name": "h3-avae", "repo": "Comfy-Org/MiniMax-H3",
+     "file": "vae/minimax_h3_audio_vae_fp32.safetensors",
+     "dest": "models/video/minimax-h3/minimax_h3_audio_vae_fp32.safetensors", "size": 610000000},
 ]
 
 

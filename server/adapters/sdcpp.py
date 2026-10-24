@@ -171,6 +171,12 @@ class SDCppAdapter(Adapter):
                 args += ["--clip_g", comps["clip_g"]["path"]]
             if comps.get("llm"):
                 args += ["--llm", comps["llm"]["path"]]
+            # 视觉塔单独存放时（部分 Qwen3-VL 包）才需要显式给
+            if comps.get("llm_vision"):
+                args += ["--llm_vision", comps["llm_vision"]["path"]]
+            # 音视频联合模型（MiniMax-H3）多了音频 VAE
+            if comps.get("audio_vae"):
+                args += ["--audio-vae", comps["audio_vae"]["path"]]
         else:
             args += ["-m", entry["path"]]
 

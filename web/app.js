@@ -494,6 +494,8 @@
     if (p.steps) { $("gSteps").value = p.steps; $("vSteps").textContent = p.steps; }
     if (p.cfg_scale) { $("gCfg").value = p.cfg_scale; $("vCfg").textContent = Number(p.cfg_scale).toFixed(1); }
     if (p.fps) $("gFps").value = p.fps;
+    // 不同模型能出的时长不一样（Wan 2 秒，H3 最短 5 秒），滑块上限跟着模型走
+    $("gDur").max = String(Number(p.duration_max) || 2);
     if (p.frames) setDuration(p.frames / (Number($("gFps").value) || 12));
     updateSizeHint();
   }
@@ -502,11 +504,12 @@
   function genFrames() {
     var fps = Number($("gFps").value) || 12;
     var dur = Number($("gDur").value) || 1;
-    return Math.max(1, Math.min(81, Math.round(dur * fps)));
+    return Math.max(1, Math.min(400, Math.round(dur * fps)));
   }
 
   function setDuration(sec) {
-    var v = Math.max(0.5, Math.min(2, Number(sec) || 1));
+    var maxDur = Number($("gDur").max) || 2;
+    var v = Math.max(0.5, Math.min(maxDur, Number(sec) || 1));
     // 对齐到滑块的步长，否则滑块位置会和数字对不上
     v = Math.round(v * 4) / 4;
     $("gDur").value = String(v);
