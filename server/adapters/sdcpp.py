@@ -208,6 +208,8 @@ class SDCppAdapter(Adapter):
 
         args += ["-o", out_path]
         args += list(c.get("extra_args") or [])
+        # 单个模型自己的引擎参数（例如大模型才需要的 --offload-to-cpu）
+        args += list(entry.get("extra_args") or [])
         return args
 
     # ---------------------------------------------------------------- 生成

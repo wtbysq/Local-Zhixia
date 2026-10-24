@@ -27,13 +27,19 @@ _SCALAR = {0: "<B", 1: "<b", 2: "<H", 3: "<h", 4: "<I", 5: "<i",
            6: "<f", 7: "<?", 10: "<Q", 11: "<q", 12: "<d"}
 
 _WANT = ("general.architecture", "general.name", "general.file_type",
+         # 纯注意力架构（Qwen3 / Llama / Gemma3）
          "qwen3.block_count", "qwen3.attention.head_count",
          "qwen3.attention.head_count_kv", "qwen3.embedding_length",
          "qwen3.context_length", "llama.block_count", "llama.attention.head_count",
          "llama.attention.head_count_kv", "llama.embedding_length",
          "llama.context_length", "gemma3.block_count", "gemma3.attention.head_count",
          "gemma3.attention.head_count_kv", "gemma3.embedding_length",
-         "gemma3.context_length")
+         "gemma3.context_length",
+         # 混合注意力（Qwen3.5 / Ornith：Gated DeltaNet + 每 N 层一个全注意力层）
+         "qwen35.block_count", "qwen35.attention.head_count",
+         "qwen35.attention.head_count_kv", "qwen35.embedding_length",
+         "qwen35.context_length", "qwen35.attention.key_length",
+         "qwen35.attention.value_length", "qwen35.full_attention_interval")
 
 
 def models_dir():
@@ -186,12 +192,23 @@ def _shape_from_meta(meta):
     if isinstance(n_head_kv, list):
         n_head_kv = max(n_head_kv) if n_head_kv else None
     head_dim = int(n_embd / n_head) if (n_embd and n_head) else None
+    # 混合架构里只有"全注意力层"留 KV，其余层是常数状态的 SSM/线性注意力。
+    # Qwen3.5 / Ornith 用 full_attention_interval 标出每隔几层一个全注意力层。
+    interval = pick("full_attention_interval")
+    kv_layers = n_layer
+    if n_layer and interval and int(interval) > 1:
+        kv_layers = int((int(n_layer) + int(interval) - 1) // int(interval))
+    key_len = pick("attention.key_length") or pick("attention.value_length")
+    if key_len and n_head_kv:
+        head_dim = int(key_len)          # Qwen3.5 的 head_dim 记在 key_length 里
     return {
         "arch": meta.get("general.architecture"),
         "name": meta.get("general.name"),
         "n_layer": n_layer, "n_head": n_head, "n_head_kv": n_head_kv,
-        "n_embd": n_embd, "head_dim": head_dim, "n_ctx_train": n_ctx,
+        "kv_layers": kv_layers, "n_embd": n_embd, "head_dim": head_dim,
+        "n_ctx_train": n_ctx,
         "quant": _FILE_TYPES.get(meta.get("general.file_type"), None),
+        "schema": 2,
     }
 
 
@@ -226,7 +243,8 @@ def _entry(path, cache):
         return None
     key = os.path.abspath(path)
     hit = cache.get(key)
-    if hit and hit.get("mtime") == int(st.st_mtime) and hit.get("size") == st.st_size:
+    if hit and hit.get("schema") == 2 and hit.get("mtime") == int(st.st_mtime) \
+            and hit.get("size") == st.st_size:
         e = dict(hit)
     else:
         e = {"path": key, "mtime": int(st.st_mtime), "size": st.st_size}
@@ -309,6 +327,7 @@ def _bundle_entry(folder):
         "size_gb": round(total / 1024 ** 3, 2),
         "weights_mb": int(total / 1024 ** 2),
         "quant": meta.get("quant"),
+        "extra_args": meta.get("extra_args") or [],
         "meta_ok": True,
     }
 
@@ -380,8 +399,8 @@ def estimate(path, ctx, kv_bits="q8_0"):
            "exact": False, "ctx": int(ctx), "kv_bits": kv_bits}
     if not e or not e.get("n_layer") or not e.get("n_head_kv") or not e.get("head_dim"):
         return out
-    per_token = 2 * int(e["n_layer"]) * int(e["n_head_kv"]) * int(e["head_dim"]) \
-        * _KV_BYTES.get(str(kv_bits).lower(), 1.0)
+    per_token = 2 * int(e.get("kv_layers") or e["n_layer"]) * int(e["n_head_kv"]) \
+        * int(e["head_dim"]) * _KV_BYTES.get(str(kv_bits).lower(), 1.0)
     kv_mb = int(per_token * int(ctx) / (1024 ** 2))
     out.update({
         "kv_mb": kv_mb,
