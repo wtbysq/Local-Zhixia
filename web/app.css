@@ -257,9 +257,15 @@ textarea,input,select{font-family:inherit;font-size:13.5px;color:var(--ink)}
 .gstage .spin{width:11px;height:11px;border:2px solid var(--aline);border-top-color:var(--accent);
   border-radius:50%;animation:gspin .8s linear infinite;flex:none}
 @keyframes gspin{to{transform:rotate(360deg)}}
-.gbar2{height:4px;background:var(--line2);border-radius:2px;overflow:hidden;margin-top:9px}
-.gbar2 i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s ease}
-.gsteps{font-size:11px;color:var(--faint);margin-top:5px;display:flex;justify-content:space-between}
+.gbar2{height:6px;background:var(--line2);border-radius:3px;overflow:hidden;margin-top:9px}
+.gbar2 i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s ease;
+  border-radius:3px}
+/* 还没拿到步数时用不确定态：一条来回滑的条，表示"在算但还不知多久" */
+.gbar2.indet i{width:34%;animation:gslide 1.15s ease-in-out infinite}
+@keyframes gslide{0%{margin-left:-34%}100%{margin-left:100%}}
+.gsteps{font-size:11px;color:var(--faint);margin-top:5px;display:flex;justify-content:space-between;
+  font-variant-numeric:tabular-nums}
+.gsteps .gs-step{color:var(--ink2)}
 .gencard .gerr{font-size:12px;color:var(--danger);background:var(--dsoft);border-radius:4px;
   padding:7px 9px;line-height:1.6;word-break:break-word}
 

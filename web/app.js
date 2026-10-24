@@ -890,13 +890,14 @@
     el.innerHTML =
       '<div class="gbody">' +
         '<div class="gstage"><span class="spin"></span><span class="gs-text">准备生成…</span></div>' +
-        '<div class="gbar2"><i></i></div>' +
+        '<div class="gbar2 indet"><i></i></div>' +
         '<div class="gsteps"><span class="gs-step">' + esc(body.width + "×" + body.height) +
           (state.mode === "video" ? " · " + body.frames + " 帧" : "") + " · " + body.steps + " 步</span>" +
           '<span class="gs-eta"></span></div>' +
         '<div class="gprompt" style="margin-top:8px">' + esc(prompt) + "</div>" +
       "</div>";
     var textEl = el.querySelector(".gs-text");
+    var barEl = el.querySelector(".gbar2");
     var fillEl = el.querySelector(".gbar2 i");
     var stepEl = el.querySelector(".gs-step");
     var etaEl = el.querySelector(".gs-eta");
@@ -909,10 +910,11 @@
       },
       progress: function (d) {
         if (!d || !d.total) return;
-        var pct = Math.max(2, Math.round(d.step / d.total * 100));
+        var pct = Math.min(100, Math.max(1, Math.round(d.step / d.total * 100)));
+        if (barEl) barEl.classList.remove("indet");
         fillEl.style.width = pct + "%";
-        stepEl.textContent = "第 " + d.step + " / " + d.total + " 步" + (d.it ? " · " + d.it : "");
-        etaEl.textContent = d.eta ? "剩余 " + d.eta : "";
+        stepEl.textContent = "第 " + d.step + " / " + d.total + " 步 · " + pct + "%";
+        etaEl.textContent = d.eta ? "剩余 " + d.eta : (d.it ? d.it : "");
       },
       done: function (r) {
         el.parentNode.replaceChild(genResultCard(r, prompt), el);
@@ -959,10 +961,14 @@
         '<div class="gmeta">' + meta.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("") + "</div>" +
         warns +
         '<div class="gacts">' +
-          '<a href="' + esc(r.url) + '" download>下载</a>' +
+          '<button class="gdl" type="button">下载</button>' +
           '<button class="gagain">按此参数再来一张</button>' +
         "</div>" +
       "</div>";
+    var dl = el.querySelector(".gdl");
+    if (dl) {
+      dl.addEventListener("click", function () { saveGenerated(r, dl); });
+    }
     var again = el.querySelector(".gagain");
     if (again) {
       again.addEventListener("click", function () {
@@ -979,6 +985,46 @@
       });
     }
     return el;
+  }
+
+  // 下载产物：桌面壳里 WebView2 不会为 <a download> 弹下载框，点下去毫无反应，
+  // 所以桌面模式改走原生保存对话框，浏览器模式才用普通下载。
+  function saveGenerated(r, btn) {
+    var url = (r && r.url) || "";
+    var name = (r && r.file) || url.split("/").pop() || "output";
+    var label = btn ? btn.textContent : "下载";
+
+    function restore() {
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_generated) {
+      if (btn) { btn.disabled = true; btn.textContent = "保存中…"; }
+      window.pywebview.api.save_generated(url, name).then(function (res) {
+        if (res && res.saved) {
+          if (btn) {
+            btn.textContent = "已保存";
+            setTimeout(function () { btn.textContent = label; btn.disabled = false; }, 2600);
+          }
+        } else if (res && res.error) {
+          restore();
+          alert("保存失败：" + res.error);
+        } else {
+          restore();          // 用户在对话框里点了取消
+        }
+      }).catch(function (e) {
+        restore();
+        alert("保存失败：" + ((e && e.message) || e));
+      });
+      return;
+    }
+
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
 
   function genNotice(msg) {
@@ -1055,7 +1101,7 @@
       list.forEach(function (x) {
         var m = x.meta || {};
         box.appendChild(genResultCard({
-          url: x.url, kind: x.kind, width: m.width || "?",
+          url: x.url, file: x.file, kind: x.kind, width: m.width || "?",
           height: m.height || "?", frames: m.frames,
           elapsed_ms: m.elapsed_ms || 0, size: x.size,
           warnings: m.warnings || [], req: m.req, prompt: m.prompt,

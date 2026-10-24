@@ -140,6 +140,40 @@ class Api:
         except Exception as exc:
             return {"saved": None, "error": str(exc)}
 
+    def save_generated(self, url, name=""):
+        """把生成的图片/视频另存到用户挑的位置。
+
+        桌面包里 WebView2 不会为 <a download> 弹下载框，点「下载」看起来毫无反应。
+        这里改走原生保存对话框：先按产物地址从本地服务取字节，再写进目标文件。
+        走 HTTP 而不是直接拼磁盘路径，是为了不把目录结构复制到前端。
+        """
+        import webview
+        url = str(url or "")
+        if not url.startswith("/generated/"):
+            return {"saved": None, "error": "无效的产物地址"}
+        base = os.path.basename(url.split("?")[0]) or "output"
+        save_name = str(name or base)
+        if not os.path.splitext(save_name)[1]:
+            save_name = base
+        try:
+            path = self._win.create_file_dialog(
+                webview.SAVE_DIALOG, save_filename=save_name)
+        except Exception:
+            return {"saved": None, "error": "对话框打开失败"}
+        if isinstance(path, (list, tuple)):
+            path = path[0] if path else None
+        if not path:
+            return {"saved": None}          # 用户取消
+        try:
+            op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            with op.open("http://127.0.0.1:%d%s" % (self._port, url), timeout=120) as r:
+                data = r.read()
+            with open(path, "wb") as f:
+                f.write(data)
+            return {"saved": path, "bytes": len(data)}
+        except Exception as exc:
+            return {"saved": None, "error": str(exc)[:200]}
+
     def open_folder(self, kind):
         """在资源管理器里打开产物目录。
 
