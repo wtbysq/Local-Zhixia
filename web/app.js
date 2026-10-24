@@ -493,20 +493,43 @@
     if (p.height) $("gH").value = p.height;
     if (p.steps) { $("gSteps").value = p.steps; $("vSteps").textContent = p.steps; }
     if (p.cfg_scale) { $("gCfg").value = p.cfg_scale; $("vCfg").textContent = Number(p.cfg_scale).toFixed(1); }
-    if (p.frames) $("gFrames").value = p.frames;
     if (p.fps) $("gFps").value = p.fps;
+    if (p.frames) setDuration(p.frames / (Number($("gFps").value) || 12));
     updateSizeHint();
+  }
+
+  // 用户选的是时长（秒），帧数由时长 × 帧率推出来 —— 帧数才是引擎参数
+  function genFrames() {
+    var fps = Number($("gFps").value) || 12;
+    var dur = Number($("gDur").value) || 1;
+    return Math.max(1, Math.min(81, Math.round(dur * fps)));
+  }
+
+  function setDuration(sec) {
+    var v = Math.max(0.5, Math.min(2, Number(sec) || 1));
+    // 对齐到滑块的步长，否则滑块位置会和数字对不上
+    v = Math.round(v * 4) / 4;
+    $("gDur").value = String(v);
   }
 
   function updateSizeHint() {
     var w = Number($("gW").value) || 0;
     var h = Number($("gH").value) || 0;
-    var fps = Number($("gFps").value) || 16;
-    var fr = Number($("gFrames").value) || 1;
     var bits = [];
     if (state.mode === "video") {
-      bits.push(fr + " 帧 ≈ " + (fr / fps).toFixed(1) + " 秒");
-      bits.push("帧数越多越吃显存，8GB 建议 ≤ 17 帧");
+      var fps = Number($("gFps").value) || 12;
+      var dur = Number($("gDur").value) || 1;
+      var fr = genFrames();
+      if ($("durFrames")) $("durFrames").textContent = dur.toFixed(2) + " 秒 · " + fr + " 帧";
+      var over = fr > 17;
+      if ($("durHint")) {
+        $("durHint").textContent = over
+          ? fr + " 帧 @ " + fps + " fps，超过 8GB 的建议上限（约 1.4 秒），可能 OOM 或降级分块"
+          : fr + " 帧 @ " + fps + " fps，8GB 建议 ≤ 17 帧（约 1.4 秒）";
+        $("durHint").className = "fieldhint" + (over ? " bad" : "");
+      }
+      bits.push(dur.toFixed(2) + " 秒 · " + fr + " 帧");
+      if (over) bits.push("帧数偏多，可能降级");
     } else {
       if (w * h > 1024 * 1024) bits.push("超过 1024² 在 8GB 上有 OOM 风险");
       else bits.push("边长会按 8 对齐");
@@ -817,8 +840,8 @@
       steps: Number($("gSteps").value) || 20,
       cfg_scale: Number($("gCfg").value) || 7,
       seed: $("gSeed").value === "" ? null : Number($("gSeed").value),
-      frames: state.mode === "video" ? (Number($("gFrames").value) || 9) : 1,
-      fps: Number($("gFps").value) || 16
+      frames: state.mode === "video" ? genFrames() : 1,
+      fps: Number($("gFps").value) || 12
     };
   }
 
@@ -892,7 +915,9 @@
         '<div class="gstage"><span class="spin"></span><span class="gs-text">准备生成…</span></div>' +
         '<div class="gbar2 indet"><i></i></div>' +
         '<div class="gsteps"><span class="gs-step">' + esc(body.width + "×" + body.height) +
-          (state.mode === "video" ? " · " + body.frames + " 帧" : "") + " · " + body.steps + " 步</span>" +
+          (state.mode === "video"
+            ? " · " + body.frames + " 帧 / " + (body.frames / (body.fps || 12)).toFixed(2) + " 秒"
+            : "") + " · " + body.steps + " 步</span>" +
           '<span class="gs-eta"></span></div>' +
         '<div class="gprompt" style="margin-top:8px">' + esc(prompt) + "</div>" +
       "</div>";
@@ -947,7 +972,10 @@
     }
     var meta = [];
     meta.push(r.width + "×" + r.height);
-    if (isVideo && r.frames) meta.push(r.frames + " 帧");
+    if (isVideo && r.frames) {
+      meta.push(r.frames + " 帧");
+      if (r.fps) meta.push((r.frames / r.fps).toFixed(2) + " 秒");
+    }
     if (r.req && r.req.steps) meta.push(r.req.steps + " 步");
     meta.push((r.elapsed_ms / 1000).toFixed(1) + " s");
     meta.push((r.size / 1024 / 1024).toFixed(2) + " MB");
@@ -982,7 +1010,9 @@
         if (req.height) $("gH").value = req.height;
         if (req.steps) { $("gSteps").value = req.steps; $("vSteps").textContent = req.steps; }
         if (req.cfg_scale) { $("gCfg").value = req.cfg_scale; $("vCfg").textContent = Number(req.cfg_scale).toFixed(1); }
-        if (req.frames) $("gFrames").value = req.frames;
+        if (req.fps) $("gFps").value = req.fps;
+        if (req.frames) setDuration(req.frames / (Number($("gFps").value) || 12));
+        updateSizeHint();
         $("input").focus();
       });
     }
@@ -1345,7 +1375,7 @@
     });
 
     // 生成参数：只影响下一次生成，不落会话
-    ["gW", "gH", "gSteps", "gCfg", "gSeed", "gFrames", "gFps"].forEach(function (id) {
+    ["gW", "gH", "gSteps", "gCfg", "gSeed", "gDur", "gFps"].forEach(function (id) {
       $(id).addEventListener("input", function () { syncGenLabels(); updateSizeHint(); });
       $(id).addEventListener("change", function () { syncGenLabels(); updateSizeHint(); });
     });
