@@ -296,3 +296,8 @@ body.gen-mode .composer .cbar .hint{display:none}
 .refmeta b{display:block;font-size:12px;color:var(--ink);font-weight:500;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .refmeta small{display:block;margin-top:2px;font-size:11px;color:var(--faint)}
+
+/* hidden 属性必须真的隐藏。
+   像 .refthumb{display:flex} / .field{display:block} 这类显式 display
+   会盖掉 UA 默认的 [hidden]{display:none}，导致空缩略图和强度滑杆照样显示。 */
+[hidden]{display:none !important}
