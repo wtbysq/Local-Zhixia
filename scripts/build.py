@@ -99,7 +99,8 @@ def run_pyinstaller(dist_dir):
 def link_models():
     """把工作台的模型以硬链接方式放进产物，避免再占一份磁盘。
 
-    递归处理子目录：语言模型在 models/ 根，图片模型在 models/image/，
+    递归处理子目录，镜像源目录结构：
+    语言模型在 models/text/，图片模型在 models/image/，
     视频模型是 models/video/<名字>/ 这样一个含 bundle.json 的目录。
     """
     src_root = os.path.join(ROOT, "models")
@@ -123,9 +124,9 @@ def link_models():
     if not linked:
         with open(os.path.join(dst_root, "把模型放在这里.txt"), "w",
                   encoding="utf-8") as f:
-            f.write("把模型文件放进本文件夹，然后重启本地智匣。\n"
-                    "  models\\           语言模型（.gguf）\n"
-                    "  models\\image\\     图片模型（.safetensors / .gguf）\n"
+            f.write("把模型文件放进对应的子文件夹，然后重启本地智匣。\n"
+                    "  models\\text\\      语言模型（.gguf）\n"
+                    "  models\\image\\     图片模型（.safetensors；多组件的建子目录放 bundle.json）\n"
                     "  models\\video\\     视频模型（一个子目录一个模型，含 bundle.json）\n"
                     "程序不下载模型，也不会联网。\n")
     return linked

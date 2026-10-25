@@ -77,6 +77,8 @@ def infer_kind(path):
             return "video"
         if seg in ("image", "images", "picture", "pictures"):
             return "image"
+        if seg in ("text", "llm", "language"):
+            return "text"
 
     if name.endswith(".gguf"):
         return "text"                       # GGUF 目前只用于语言模型
@@ -243,8 +245,10 @@ def _entry(path, cache):
         return None
     key = os.path.abspath(path)
     hit = cache.get(key)
+    # 缓存里存的是绝对路径。整个目录被搬走（换盘 / 换用户名）后旧路径会失效，
+    # 所以命中前先确认文件真在，不在就当场重新解析。
     if hit and hit.get("schema") == 2 and hit.get("mtime") == int(st.st_mtime) \
-            and hit.get("size") == st.st_size:
+            and hit.get("size") == st.st_size and os.path.isfile(hit.get("path") or ""):
         e = dict(hit)
     else:
         e = {"path": key, "mtime": int(st.st_mtime), "size": st.st_size}
