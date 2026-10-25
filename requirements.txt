@@ -1,4 +1,4 @@
-# 本程序零第三方依赖：只用 Python 3.9+ 标准库
+# 运行时零第三方依赖：只用 Python 3.9+ 标准库
 #   http.server / socketserver  → HTTP 与 SSE
 #   http.client                 → 流式读引擎响应
 #   sqlite3                     → 会话与消息
@@ -6,3 +6,11 @@
 #
 # 所以这里没有需要 pip install 的包，也不需要 venv。
 # 整个目录（含 runtime/ 与 models/）可以直接拷到同架构的机器上跑。
+#
+# 唯一的例外：开发模式下想要「桌面窗口」（python app.py）而不是浏览器，
+# 需要额外装两个包 —— 打包版已经内置，最终用户不需要装任何东西：
+#   pip install pywebview pythonnet
+# 只用浏览器（启动.bat / python server/main.py）则什么都不用装。
+#
+# 打发布包还需要 PyInstaller：
+#   pip install pyinstaller
