@@ -25,7 +25,7 @@ from server import main as srv
 MUTEX_NAME = "Local\\LocalModelWorkbench.Instance"
 WINDOW_STATE = os.path.join(config.DATA_DIR, "window.json")
 APP_TITLE = "本地智匣"
-APP_VERSION = "0.1"
+APP_VERSION = "0.2"
 
 _mutex_handle = None
 
