@@ -283,17 +283,61 @@ def _entry(path, cache):
 # 语言模型是 GGUF；扩散模型常用 safetensors / ckpt
 _MODEL_EXTS = (".gguf", ".safetensors", ".ckpt", ".pth", ".bin")
 
+BUNDLE_FILE = "bundle.json"
+COMPONENTS_DIR = "components"
+
 
 def _walk(root):
     out = []
-    for dirpath, _dirs, files in os.walk(root):
+    for dirpath, dirs, files in os.walk(root):
+        # components/ 是共享组件池：里面的 VAE、文本编码器属于某个模型，
+        # 不是独立模型，不能摆到界面上。
+        if dirpath == root and COMPONENTS_DIR in dirs:
+            dirs.remove(COMPONENTS_DIR)
         for fn in files:
             if fn.lower().endswith(_MODEL_EXTS):
                 out.append(os.path.join(dirpath, fn))
     return sorted(out)
 
 
-BUNDLE_FILE = "bundle.json"
+# bundle.json 里 components 的键 → components/ 下的池子目录。
+# 未列出的键只在模型目录内找，不猜位置。
+_ROLE_POOL = {
+    "diffusion": "diffusion",
+    "model": "diffusion",
+    "vae": "vae",
+    "audio_vae": "audio_vae",
+    "llm": "text_encoders",
+    "llm_vision": "text_encoders",
+    "t5xxl": "text_encoders",
+    "clip_l": "text_encoders",
+    "clip_g": "text_encoders",
+}
+
+
+def _resolve_component(folder, role, name):
+    """组件查找顺序：显式路径 → 模型目录内 → components/<池子>/。
+
+    池子让多个模型复用同一份 VAE / 文本编码器（anima 与 krea2 共用
+    qwen_image_vae 就是例子）。模型目录内优先，则保证「把整个模型目录
+    单独拷给别人」的老布局照样能跑。
+    """
+    if not name:
+        return None
+    if os.path.isabs(name):
+        return name if os.path.isfile(name) else None
+    if os.sep in name or "/" in name:          # 显式相对路径，按路径解析
+        p = os.path.normpath(os.path.join(folder, name.replace("/", os.sep)))
+        return p if os.path.isfile(p) else None
+    p = os.path.join(folder, name)             # 1) 模型目录内
+    if os.path.isfile(p):
+        return p
+    pool = _ROLE_POOL.get(role)                # 2) 共享池
+    if pool:
+        p = os.path.join(models_dir(), COMPONENTS_DIR, pool, name)
+        if os.path.isfile(p):
+            return p
+    return None
 
 
 def _bundle_entry(folder):
@@ -309,11 +353,14 @@ def _bundle_entry(folder):
         return None
     comps = {}
     total = 0
+    folder_abs = os.path.abspath(folder)
     for key, name in (meta.get("components") or {}).items():
-        p = os.path.join(folder, name)
-        if os.path.isfile(p):
+        p = _resolve_component(folder, key, name)
+        if p:
+            shared = os.path.dirname(os.path.abspath(p)) != folder_abs
             comps[key] = {"file": name, "path": p,
-                          "size_gb": round(os.path.getsize(p) / 1024 ** 3, 2)}
+                          "size_gb": round(os.path.getsize(p) / 1024 ** 3, 2),
+                          "shared": shared}
             total += os.path.getsize(p)
         else:
             comps[key] = {"file": name, "missing": True}

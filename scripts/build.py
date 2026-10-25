@@ -125,9 +125,13 @@ def link_models():
         with open(os.path.join(dst_root, "把模型放在这里.txt"), "w",
                   encoding="utf-8") as f:
             f.write("把模型文件放进对应的子文件夹，然后重启本地智匣。\n"
-                    "  models\\text\\      语言模型（.gguf）\n"
-                    "  models\\image\\     图片模型（.safetensors；多组件的建子目录放 bundle.json）\n"
-                    "  models\\video\\     视频模型（一个子目录一个模型，含 bundle.json）\n"
+                    "  models\\text\\        语言模型（.gguf）\n"
+                    "  models\\image\\       图片模型：一个子目录一个配方（bundle.json）\n"
+                    "  models\\video\\       视频模型：同上\n"
+                    "  models\\components\\  共享组件池，按角色分：\n"
+                    "                        diffusion / vae / audio_vae / text_encoders\n"
+                    "多组件模型在 bundle.json 里只写文件名，程序先在模型目录找，\n"
+                    "找不到再去 components\\ 下对应角色的目录找，同一份组件可被多个模型复用。\n"
                     "程序不下载模型，也不会联网。\n")
     return linked
 

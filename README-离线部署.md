@@ -35,8 +35,9 @@
   本地智匣.exe          双击这个
   models\               把模型放这里（用户自己导入）
     text\               语言模型（.gguf，一个文件一个模型）
-    image\              图片模型（.safetensors / .gguf；多组件的建子目录放 bundle.json）
-    video\              视频模型（一个子目录一个模型，含 bundle.json）
+    image\              图片模型：一个子目录一个配方（bundle.json）
+    video\              视频模型：同上
+    components\         共享组件池（diffusion / vae / audio_vae / text_encoders）
   config.json           唯一需要手改的配置
   使用说明.txt
   data\                 首次运行自动生成：数据库、快照、日志、生成产物
@@ -106,15 +107,31 @@ python scripts/build.py --clean    # 丢掉全部运行痕迹，产出可直接�
 
 ## 二、放模型
 
-把模型按类型放进 `models/` 的三个子目录，本程序**不下载模型**：
+本程序**不下载模型**，按角色放进 `models/` 的四个位置：
 
-| 子目录 | 放什么 | 形式 |
+| 位置 | 放什么 | 形式 |
 |---|---|---|
 | `models/text/` | 语言模型 | `.gguf`，一个文件一个模型 |
-| `models/image/` | 图片模型 | 单文件直接放；多组件（transformer+VAE+编码器）建子目录放 `bundle.json` |
-| `models/video/` | 视频模型 | 一个子目录一个模型，含 `bundle.json` |
+| `models/image/` | 图片模型 | 一个子目录一个配方，目录里放 `bundle.json` |
+| `models/video/` | 视频模型 | 同上 |
+| `models/components/` | 共享组件 | `diffusion/` 扩散主干、`vae/` 图像与视频 VAE、`audio_vae/` 音频 VAE、`text_encoders/` 文本编码器 |
 
-顶层的 `.gguf` 也能识别（按语言模型处理），但规范目录是上面三个。
+**组件查找顺序**：`bundle.json` 的 `components` 里只写文件名，程序先在
+该模型目录内找，找不到再去 `components/<角色>/` 找。所以：
+
+- 同一个 VAE / 文本编码器只存一份，多个模型复用（`anima` 与 `krea2` 共用
+  `components/vae/qwen_image_vae.safetensors`，省了 242 MB）
+- 想单独把一个模型目录拷给别人时，把组件一起放回该目录即可，老布局照样能跑
+- 顶层散放的 `.gguf` 仍按语言模型识别，但规范位置是 `models/text/`
+
+`components` 下按角色分目录，角色名与 `bundle.json` 的键对应：
+
+| bundle 键 | 池子目录 |
+|---|---|
+| `diffusion` / `model` | `components/diffusion/` |
+| `vae` | `components/vae/` |
+| `audio_vae` | `components/audio_vae/` |
+| `llm` / `llm_vision` / `t5xxl` / `clip_l` / `clip_g` | `components/text_encoders/` |
 
 启动时会自动解析 GGUF 头，读出真实结构（层数、KV 头数、head_dim、原生上下文）
 并估算显存。当前这台机器：
@@ -227,7 +244,7 @@ server/
   main.py                HTTP + SSE，零依赖
 web/                     原生 JS，无构建、无 CDN
 runtime/llama/           llama-server 运行时（已含 CUDA 库，可整体搬迁）
-models/                  text/ image/ video/ 三类，用户自己导入
+models/                  text/ image/ video/ 三类 + components/ 共享组件池
 data/                    app.db、models.json 缓存、snapshots/
 logs/                    app.log（结构化）、engine.log（引擎原始输出）
 scripts/                 mock_llm.py、smoke.py（66 项断言）、build.py、doctor.py
