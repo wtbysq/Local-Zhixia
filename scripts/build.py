@@ -39,12 +39,23 @@ README = """本地智匣
   这不是卡死。
 
 二、怎么加模型
-  语言模型：把 .gguf 放进 models\\
-  图片模型：把 .safetensors 或 .gguf 放进 models\\image\\
-  视频模型：在 models\\video\\ 下建一个子目录（如 wan2.1），
-            放扩散模型 + VAE + 文本编码器，再写一个 bundle.json 声明组件
-            （写法照着已有的那个抄）。
+  models\\ 下分四类：
+  语言模型：把 .gguf 放进 models\\text\\
+  图片模型：在 models\\image\\ 下建子目录（如 myanima），放一个 bundle.json
+  视频模型：在 models\\video\\ 下建子目录，同上
+  组件文件：扩散主干 models\\components\\diffusion\\
+            VAE models\\components\\vae\\、音频 VAE models\\components\\audio_vae\\
+            文本编码器 models\\components\\text_encoders\\
+  bundle.json 的 components 里只写文件名，程序会先在模型目录找，找不到再去
+  components\\ 对应角色的目录找——同一份 VAE 多个模型可以共用，省磁盘。
   放好重启程序，就能在「参数 → 模型」里看到。
+
+  参考图与蒙版（图片工作区）：
+    拖一张图进「参考素材」就是图生图，文字仍是主控。
+    「重绘强度」0.15 几乎只改细节，0.5 明显变化，0.7 以上基本重画。
+    点「涂抹蒙版」涂出要重画的地方，只有涂过的区域会变，其余保持原样。
+    涂得越小、提示词越具体，效果越自然。
+  图生视频：切到「视频」，选 wan2.2-ti2v-5b，图片当首帧即可。
 
   程序不下载模型，也不联网。
 
@@ -68,7 +79,11 @@ README = """本地智匣
   4) 杀毒软件报警：这是 PyInstaller 打包的程序常见的误报，加信任即可。
 
 五、目录说明
-  models\\            放模型的地方（language / image / video 三类）
+  models\\            放模型的地方
+    models\\text\\      语言模型
+    models\\image\\     图片模型（每个子目录一个 bundle.json）
+    models\\video\\     视频模型（同上）
+    models\\components\\ 共享组件池（diffusion / vae / audio_vae / text_encoders）
   config.json        端口、上下文、采样参数、快照密度（直接改这个）
   data\\              运行后自动生成：
     data\\图片\\       生成的图片（.png），每张旁边有同名 .json 记录参数
