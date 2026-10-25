@@ -281,3 +281,18 @@ body.gen-mode .composer .cbar .hint{display:none}
 
 /* hidden 属性在 flex 容器里的兜底：UA 样式可能被布局规则覆盖 */
 .stream[hidden],.genintro[hidden],#textParams[hidden],#genParams[hidden],#videoOnly[hidden]{display:none}
+
+/* 参考素材（图生图 / 图生视频首帧） */
+.dropzone{margin-bottom:10px;border:1px dashed var(--line);border-radius:8px;padding:16px 10px;
+  text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+.dropzone:hover,.dropzone.over{border-color:var(--aline);background:#f6f9f8}
+.dropzone.loading{opacity:.6;pointer-events:none}
+.dropzone .dz-main{display:block;font-size:12.5px;color:var(--ink2)}
+.dropzone .dz-sub{display:block;margin-top:4px;font-size:11px;color:var(--faint)}
+.refthumb{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px;
+  border:1px solid var(--line);border-radius:8px;background:#fafbfa}
+.refthumb img{width:52px;height:52px;object-fit:cover;border-radius:6px;background:#eee;flex:0 0 auto}
+.refmeta{flex:1 1 auto;min-width:0}
+.refmeta b{display:block;font-size:12px;color:var(--ink);font-weight:500;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.refmeta small{display:block;margin-top:2px;font-size:11px;color:var(--faint)}

@@ -16,10 +16,10 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from server import config, context, llm, models, snapshot, store
+    from server import assets, config, context, llm, models, snapshot, store
     from server.tokens import estimate
 else:
-    from . import config, context, llm, models, snapshot, store
+    from . import assets, config, context, llm, models, snapshot, store
     from .tokens import estimate
 
 # ---------------------------------------------------------------- 运行时状态
@@ -287,6 +287,13 @@ class Handler(BaseHTTPRequestHandler):
                     rows = [r for r in rows if r.get("session_id") == sid][:limit]
                 return self._json({"level": snapshot.level(), "snapshots": rows})
 
+            # /api/assets —— 上传参考素材（图生图 / 重绘 / 图生视频的输入）
+            if parts == ["api", "assets"] and method == "POST":
+                return self._upload_asset(self._body())
+
+            if len(parts) == 3 and parts[:2] == ["api", "assets"] and method == "GET":
+                return self._asset_file(parts[2])
+
             # /api/generate —— 图片/视频生成（SSE：stage / progress / result / error）
             if parts == ["api", "generate"] and method == "POST":
                 return self._generate(self._body())
@@ -464,6 +471,43 @@ class Handler(BaseHTTPRequestHandler):
         except ConnectionError:
             pass
 
+    def _asset_file(self, asset_id):
+        """把上传过的素材回给前端做缩略图预览。"""
+        full = assets.path_of(asset_id)
+        if not full:
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        ext = os.path.splitext(full)[1].lower()
+        ctype = _GEN_MEDIA.get(ext) or mimetypes.guess_type(full)[0] or "application/octet-stream"
+        with open(full, "rb") as f:
+            data = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "max-age=31536000, immutable")
+        self.end_headers()
+        try:
+            self.wfile.write(data)
+        except ConnectionError:
+            pass
+
+    def _upload_asset(self, body):
+        """收参考素材。用 base64 JSON 而不是 multipart：标准库解析 multipart 要手写一遍，
+        而 base64 的 33% 膨胀对图片素材（几 MB 级）可以接受。"""
+        try:
+            meta = assets.save(body.get("kind") or "image",
+                               body.get("data") or "",
+                               body.get("name") or "")
+        except ValueError as exc:
+            return self._err(400, "BAD_ASSET", str(exc))
+        except Exception:
+            log_event(event="asset_save_failed", trace=traceback.format_exc()[:800])
+            return self._err(500, "ASSET_SAVE_FAILED", "素材保存失败，请重试")
+        log_event(event="asset_saved", kind=meta["kind"], bytes=meta["bytes"])
+        return self._json({"asset": meta}, status=201)
+
     # ---------- 业务 ----------
 
     def _generate(self, body):
@@ -490,6 +534,43 @@ class Handler(BaseHTTPRequestHandler):
         prompt = (body.get("prompt") or "").strip()
         if not prompt:
             return self._err(400, "EMPTY_PROMPT", "请先写提示词")
+
+        # ---- 参考素材 ----
+        # 文字始终是主控：素材只做条件输入，prompt 不能为空。
+        src, src_ids = {}, {}
+        for field in ("init_image", "end_image", "mask"):
+            aid = str(body.get(field) or "").strip()
+            if not aid:
+                continue
+            p = assets.path_of(aid)
+            if not p:
+                return self._err(400, "ASSET_NOT_FOUND",
+                                 "参考素材不存在（%s），请重新上传" % field)
+            src[field] = p
+            src_ids[field] = aid
+
+        # 需要哪种能力：优先按最"强"的输入判断，报错信息才对得上
+        need = None
+        if src.get("mask"):
+            need = "inpaint"
+        elif src.get("end_image"):
+            need = "flf2v"
+        elif src.get("init_image"):
+            need = "i2v" if kind == "video" else "i2i"
+        caps = models.capabilities(entry)
+        if need and need not in caps:
+            supported = "、".join(models.CAPABILITIES.get(c, c) for c in caps) or "无"
+            return self._err(400, "CAPABILITY_UNSUPPORTED",
+                             "%s 能做的：%s；不支持「%s」。换个模型，或去掉参考素材。"
+                             % (model_id, supported, models.CAPABILITIES.get(need, need)))
+
+        strength = None
+        if src.get("init_image"):
+            try:
+                strength = float(body.get("strength"))
+            except (TypeError, ValueError):
+                strength = 0.75
+            strength = min(1.0, max(0.0, strength))
 
         adapter = llm.for_kind(kind)
         if not hasattr(adapter, "generate"):
@@ -519,6 +600,10 @@ class Handler(BaseHTTPRequestHandler):
             "seed": body.get("seed"),
             "frames": frames,
             "fps": max(1, min(60, int(body.get("fps") or defaults.get("fps") or 16))),
+            "init_image": src.get("init_image"),
+            "end_image": src.get("end_image"),
+            "mask": src.get("mask"),
+            "strength": strength,
         }
 
         # 视频容器可选：webm（真视频）/ webp（动画图）/ avi（老兼容）
@@ -561,6 +646,8 @@ class Handler(BaseHTTPRequestHandler):
         payload = {
             "url": url, "file": result["file"], "kind": kind, "model": model_id,
             "prompt": prompt, "negative": req["negative"], "req": req,
+            # 素材 id 单独记一份：req 里是绝对路径，换机器就失效了
+            "sources": src_ids or None,
             "width": result["width"], "height": result["height"],
             "frames": result.get("frames"), "fps": req["fps"],
             "elapsed_ms": result["elapsed_ms"], "size": result["size"],

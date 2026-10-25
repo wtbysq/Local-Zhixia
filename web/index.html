@@ -176,6 +176,28 @@
       </div>
 
       <div id="genParams" hidden>
+        <div id="refBox" hidden>
+          <div class="psep">参考素材 <em class="locknote" id="refModeHint">图生图</em></div>
+          <div class="dropzone" id="refDrop" tabindex="0" role="button">
+            <span class="dz-main">拖图片进来，或点击选择</span>
+            <small class="dz-sub">PNG / JPEG / WebP</small>
+          </div>
+          <input type="file" id="refFile" accept="image/png,image/jpeg,image/webp" hidden>
+          <div class="refthumb" id="refThumb" hidden>
+            <img id="refImg" alt="参考图">
+            <div class="refmeta">
+              <b id="refName">—</b>
+              <small id="refSize"></small>
+            </div>
+            <button class="iconbtn" id="refClear" title="移除参考图">×</button>
+          </div>
+          <label class="field" id="strengthField" hidden>
+            <span>重绘强度 <b id="vStrength">0.60</b></span>
+            <input type="range" id="gStrength" min="0.1" max="1" step="0.05" value="0.6">
+            <small class="fieldhint">越小越贴近原图，越大越接近纯文字生成</small>
+          </label>
+        </div>
+
         <div class="psep">生成参数</div>
         <label class="field">
           <span>分辨率</span>

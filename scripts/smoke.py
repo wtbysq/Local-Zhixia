@@ -339,6 +339,54 @@ def main():
                   est["overhead_mb"] > 0 and est["total_mb"] > est["weights_mb"],
                   "overhead=%s" % est["overhead_mb"])
 
+    print("\n=== 6.11 参考素材与图生图能力校验 ===")
+    PNG_1PX = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+               "+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+    st, d = cli.json("POST", "/api/assets",
+                     {"kind": "image", "data": PNG_1PX, "name": "1px.png"})
+    asset = (d.get("asset") or {}).get("id")
+    check("上传参考图 → 201 且返回素材 id",
+          st == 201 and bool(asset), "status=%s id=%s" % (st, asset))
+
+    st, d = cli.json("GET", "/api/assets/" + str(asset))
+    check("素材可回读", st == 200, "status=%s" % st)
+
+    st, d = cli.json("POST", "/api/assets",
+                     {"kind": "image", "data": "这不是base64", "name": "bad"})
+    check("非法 base64 → 400 BAD_ASSET",
+          st == 400 and (d.get("error") or {}).get("code") == "BAD_ASSET",
+          "status=%s" % st)
+
+    st, d = cli.json("POST", "/api/assets",
+                     {"kind": "video", "data": PNG_1PX, "name": "x.png"})
+    check("图片冒充视频素材 → 400 BAD_ASSET",
+          st == 400 and (d.get("error") or {}).get("code") == "BAD_ASSET",
+          "status=%s" % st)
+
+    # 素材不存在时，必须在校验阶段就拦住，不能等到引擎启动
+    st, d = cli.json("POST", "/api/generate",
+                     {"model": img_id or "无", "prompt": "x",
+                      "init_image": "0000000000000000"})
+    check("不存在的素材 → 400 ASSET_NOT_FOUND",
+          st == 400 and (d.get("error") or {}).get("code") == "ASSET_NOT_FOUND",
+          "status=%s" % st)
+
+    # 只挑明确不支持 i2v 的模型来测拦截，避免误触发真的视频生成
+    t2v = next((m for m in ms if m.get("kind") == "video"
+                and "i2v" not in (m.get("capabilities") or [])), None)
+    if t2v and asset:
+        st, d = cli.json("POST", "/api/generate",
+                         {"model": t2v["id"], "prompt": "x",
+                          "init_image": asset, "frames": 9})
+        code = (d.get("error") or {}).get("code")
+        check("纯文生视频模型带参考图 → 400 CAPABILITY_UNSUPPORTED",
+              st == 400 and code == "CAPABILITY_UNSUPPORTED",
+              "model=%s status=%s code=%s" % (t2v["id"], st, code))
+
+    check("模型列表带 capabilities",
+          all("capabilities" in m for m in ms),
+          "n=%d" % len(ms))
+
     print("\n=== 7. 压缩策略（单元级，不依赖服务）===")
     from server import context
 

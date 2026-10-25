@@ -60,6 +60,27 @@ def path_of(model_id):
 
 KINDS = ("text", "image", "video")
 
+# 模型能接受哪些输入形态。bundle.json 里显式写 capabilities 优先；
+# 没写则按类型推断——图片模型默认能吃 init-img，视频模型默认只认文字。
+# 这样老 bundle 不用改，而新模型可以精确声明（比如只支持 t2v 的 Wan 变体）。
+CAPABILITIES = {
+    "t2i": "文生图",
+    "i2i": "图生图",
+    "inpaint": "局部重绘",
+    "t2v": "文生视频",
+    "i2v": "图生视频",
+    "flf2v": "首尾帧视频",
+}
+
+_CAPS_BY_KIND = {"image": ("t2i", "i2i"), "video": ("t2v",)}
+
+
+def capabilities(entry):
+    caps = entry.get("capabilities")
+    if caps:
+        return [c for c in caps if c in CAPABILITIES]
+    return list(_CAPS_BY_KIND.get(entry.get("kind") or "text", ()))
+
 _VIDEO_HINTS = ("h3", "hailuo", "wan2", "t2v", "i2v", "svd", "cogvideo",
                 "animate", "ltx", "video", "hunyuanvideo", "mochi")
 _IMAGE_HINTS = ("sd15", "sd21", "sdxl", "sd3", "flux", "kolors", "playground",
@@ -375,6 +396,7 @@ def _bundle_entry(folder):
         "params": meta.get("params") or {},
         "components": comps,
         "missing": [k for k, v in comps.items() if v.get("missing")],
+        "capabilities": meta.get("capabilities") or None,
         "size_gb": round(total / 1024 ** 3, 2),
         "weights_mb": int(total / 1024 ** 2),
         "quant": meta.get("quant"),
@@ -465,6 +487,9 @@ def estimate(path, ctx, kv_bits="q8_0"):
 def decorate(entry, ctx, kv_bits):
     """给模型列表补上显存估算，供界面与 CLI 直接展示。"""
     d = dict(entry)
+    # 能力列表始终给全：bundle.json 显式声明的优先，否则按类型推断。
+    # 前端据此决定要不要显示「参考素材」入口。
+    d["capabilities"] = capabilities(entry)
     kind = entry.get("kind") or "text"
     if entry.get("bundle") or kind in ("image", "video"):
         # 扩散模型没有 KV cache。显存 = 权重 + 计算缓冲（激活值、VAE 中间张量）。

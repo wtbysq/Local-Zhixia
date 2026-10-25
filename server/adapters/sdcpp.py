@@ -184,6 +184,17 @@ class SDCppAdapter(Adapter):
             args += ["-M", "vid_gen"]
 
         args += ["-p", str(req.get("prompt") or "")]
+        # 参考素材：文字仍是主控，素材只做条件输入
+        init = req.get("init_image")
+        if init:
+            args += ["-i", str(init)]
+            if req.get("strength") is not None:
+                # --strength 是加噪强度：越小越贴近原图，越大越放开发挥
+                args += ["--strength", "%.2f" % float(req["strength"])]
+        if req.get("end_image"):
+            args += ["--end-img", str(req["end_image"])]
+        if req.get("mask"):
+            args += ["--mask", str(req["mask"])]
         neg = str(req.get("negative") or "").strip()
         if neg:
             args += ["-n", neg]

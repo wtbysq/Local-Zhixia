@@ -77,6 +77,19 @@ data\视频\     生成的视频（.webm，可用 config.json 的 video_format �
 步数不要低于 20：4–6 步出来的画面糊成色块。想要更大画面，先减帧数（9→5），别先加分辨率。
 降级发生时，结果卡上会显示「VAE 显存不足，已降级分块解码」。
 
+**图生图（参考图）**：参数面板「参考素材」里拖一张图进去（PNG / JPEG / WebP），
+再写提示词——**文字始终是主控**，图片只做条件输入。
+
+- 「重绘强度」越小越贴近原图（0.15 几乎原样，只改细节），越大越放开（0.7 以上基本重画）
+- 上传后分辨率自动跟着参考图走，避免被拉变形
+- 素材存在 `data/inputs/`，产物旁边那份 json 里记着素材 id，可复查
+- 只有声明了 `i2i` 能力的模型才显示这个入口（当前 4 个图片模型都支持）
+
+实测（SD1.5 / 20 步 / 512²）：强度 0.15 约 6 秒出图，构图与参考图基本一致。
+
+> 注意 SD1.5 这类非 turbo 模型别用 8 步——步数不足时即使给了参考图，
+> 结构也会漂移得厉害。turbo/LCM 类模型才适合 1–8 步。
+
 ### 3. 开发版（改代码时用）
 
 浏览器刷新即可看到效果，不必每次打包。
@@ -245,7 +258,7 @@ server/
 web/                     原生 JS，无构建、无 CDN
 runtime/llama/           llama-server 运行时（已含 CUDA 库，可整体搬迁）
 models/                  text/ image/ video/ 三类 + components/ 共享组件池
-data/                    app.db、models.json 缓存、snapshots/
+data/                    app.db、models.json 缓存、snapshots/、inputs/（参考素材）
 logs/                    app.log（结构化）、engine.log（引擎原始输出）
 scripts/                 mock_llm.py、smoke.py（66 项断言）、build.py、doctor.py
 本地智匣.spec            PyInstaller 配置（onedir）

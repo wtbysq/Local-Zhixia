@@ -22,6 +22,7 @@
     generating: false,
     genAbort: null,
     generated: [],          // 当前分类下的生成产物
+    refAsset: null,         // 参考素材（图生图 / 图生视频的首帧）
     defaults: null,         // 服务端持久化的默认参数，启动时拉取
     desktop: false          // 是否运行在桌面壳里（决定标题栏与几个能力走哪条路）
   };
@@ -444,6 +445,7 @@
     }
     // 下拉只列当前工作区的模型：聊天不会出现图片/视频模型，反之亦然
     refreshModelSelect();
+    if (gen) syncRefBox();
     updateModeButtons();
     updateHeader();
   }
@@ -844,8 +846,136 @@
       cfg_scale: Number($("gCfg").value) || 7,
       seed: $("gSeed").value === "" ? null : Number($("gSeed").value),
       frames: state.mode === "video" ? genFrames() : 1,
-      fps: Number($("gFps").value) || 12
+      fps: Number($("gFps").value) || 12,
+      // 文字始终是主控：素材只做条件输入，null 就是纯文字生成
+      init_image: state.refAsset ? state.refAsset.id : null,
+      strength: state.refAsset ? Number($("gStrength").value) : null
     };
+  }
+
+  /* ---------- 参考素材：图生图 / 图生视频首帧 ---------- */
+
+  // 当前模型能不能吃图片输入，决定这块 UI 出不出现
+  function refCapability() {
+    var m = modelById($("pModel").value);
+    var caps = (m && m.capabilities) || [];
+    if (state.mode === "video") return caps.indexOf("i2v") >= 0 ? "i2v" : null;
+    return caps.indexOf("i2i") >= 0 ? "i2i" : null;
+  }
+
+  function syncRefBox() {
+    var cap = refCapability();
+    $("refBox").hidden = !cap;
+    if (!cap) { clearRef(); return; }
+    $("refModeHint").textContent = cap === "i2v" ? "图生视频 · 首帧" : "图生图";
+    var main = $("refDrop").querySelector(".dz-main");
+    if (main) {
+      main.textContent = cap === "i2v"
+        ? "拖一张图作为首帧，或点击选择"
+        : "拖图片进来，或点击选择";
+    }
+    renderRef();
+  }
+
+  function renderRef() {
+    var a = state.refAsset;
+    $("refThumb").hidden = !a;
+    $("refDrop").hidden = !!a;
+    $("strengthField").hidden = !a;
+    if (!a) return;
+    $("refImg").src = a.url;
+    $("refName").textContent = a.name || "参考图";
+    $("refSize").textContent = Math.round((a.bytes || 0) / 1024) + " KB" +
+      (a.width && a.height ? " · " + a.width + "×" + a.height : "");
+  }
+
+  function clearRef() {
+    if (!state.refAsset) return;
+    state.refAsset = null;
+    renderRef();
+  }
+
+  function fileToBase64(file) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        var s = String(fr.result || "");
+        resolve(s.indexOf(",") >= 0 ? s.split(",")[1] : s);
+      };
+      fr.onerror = function () { reject(new Error("读取文件失败")); };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  async function uploadRef(file) {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type || "")) {
+      genNotice("参考图只支持 PNG / JPEG / WebP");
+      return;
+    }
+    if (file.size > 24 * 1024 * 1024) {
+      genNotice("参考图太大，上限 24 MB");
+      return;
+    }
+    $("refDrop").classList.add("loading");
+    try {
+      var b64 = await fileToBase64(file);
+      var d = await api("/api/assets", {
+        method: "POST",
+        body: { kind: "image", data: b64, name: file.name }
+      });
+      var a = d.asset || {};
+      // 分辨率跟着参考图走，否则重绘会把画面拉变形
+      await new Promise(function (resolve) {
+        var im = new Image();
+        im.onload = function () {
+          a.width = im.naturalWidth;
+          a.height = im.naturalHeight;
+          $("gW").value = Math.max(256, Math.min(1536, Math.round(im.naturalWidth / 8) * 8));
+          $("gH").value = Math.max(256, Math.min(1536, Math.round(im.naturalHeight / 8) * 8));
+          resolve();
+        };
+        im.onerror = function () { resolve(); };
+        im.src = a.url;
+      });
+      state.refAsset = a;
+      renderRef();
+    } catch (e) {
+      genNotice("上传失败：" + (e.message || e));
+    } finally {
+      $("refDrop").classList.remove("loading");
+    }
+  }
+
+  function initRef() {
+    var drop = $("refDrop");
+    drop.addEventListener("click", function () { $("refFile").click(); });
+    drop.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("refFile").click(); }
+    });
+    drop.addEventListener("dragover", function (e) {
+      e.preventDefault();
+      drop.classList.add("over");
+    });
+    drop.addEventListener("dragleave", function () { drop.classList.remove("over"); });
+    drop.addEventListener("drop", function (e) {
+      e.preventDefault();
+      drop.classList.remove("over");
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) uploadRef(f);
+    });
+    $("refFile").addEventListener("change", function () {
+      var f = this.files && this.files[0];
+      if (f) uploadRef(f);
+      this.value = "";
+    });
+    $("refClear").addEventListener("click", function (e) {
+      e.stopPropagation();
+      clearRef();
+    });
+    $("gStrength").addEventListener("input", function () {
+      $("vStrength").textContent = Number(this.value).toFixed(2);
+    });
   }
 
   async function generateOnce() {
@@ -920,7 +1050,10 @@
         '<div class="gsteps"><span class="gs-step">' + esc(body.width + "×" + body.height) +
           (state.mode === "video"
             ? " · " + body.frames + " 帧 / " + (body.frames / (body.fps || 12)).toFixed(2) + " 秒"
-            : "") + " · " + body.steps + " 步</span>" +
+            : "") + " · " + body.steps + " 步" +
+          (body.init_image
+            ? " · 含参考图 " + Number(body.strength || 0).toFixed(2)
+            : "") + "</span>" +
           '<span class="gs-eta"></span></div>' +
         '<div class="gprompt" style="margin-top:8px">' + esc(prompt) + "</div>" +
       "</div>";
@@ -1371,6 +1504,7 @@
       if (state.mode !== "chat") {
         prefillGenParams(modelById($("pModel").value));
         updateModelHint();
+        syncRefBox();          // 换模型可能就不支持图生图了，这块 UI 要跟着变
         return;
       }
       syncParamLabels();
@@ -1569,6 +1703,7 @@
     bindChips();
     bindPanel();
     bindModeBar();
+    initRef();
 
     $("btnSend").addEventListener("click", send);
     $("btnStop").addEventListener("click", function () {
