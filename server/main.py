@@ -17,9 +17,11 @@ from urllib.parse import parse_qs, unquote, urlparse
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from server import assets, config, context, llm, models, snapshot, store
+    from server import png as pngmod
     from server.tokens import estimate
 else:
     from . import assets, config, context, llm, models, snapshot, store
+    from . import png as pngmod
     from .tokens import estimate
 
 # ---------------------------------------------------------------- 运行时状态
@@ -159,6 +161,23 @@ def make_summarizer(model=None):
                              timeout=config.CFG["summary_timeout"], model=model)
 
     return _summarize
+
+
+def all_white_mask(init_path):
+    """造一张与底图同尺寸的全白 PNG。
+
+    inpaint 模型只在「收到 mask」时才真正去噪，而且力度很弱（实测蒙版区域
+    差异只有全图重绘的 1/3）。所以喂它全白蒙版 = 让它做满强度整图重绘，
+    真实蒙版由 Handler._generate 在生成后做像素级合成。
+    同尺寸复用同一个文件，避免每次都写一遍。
+    """
+    with open(init_path, "rb") as f:
+        w, h, _ch, _px = pngmod.decode(f.read())
+    path = os.path.join(assets.ASSET_DIR, "white-%dx%d.png" % (w, h))
+    if not os.path.isfile(path):
+        with open(path, "wb") as f:
+            f.write(pngmod.encode(w, h, 3, b"\xff\xff\xff" * (w * h)))
+    return path
 
 
 # ---------------------------------------------------------------- 请求处理器
@@ -590,6 +609,16 @@ class Handler(BaseHTTPRequestHandler):
             # 显存是否扛得住由引擎自己报错，这里不再提前砍。
             frames = max(1, min(400, frames))
 
+        # 有蒙版时：交给引擎的是「全白蒙版」，让它做满强度整图重绘；
+        # 用户真正的蒙版留给后面的像素级合成。底图不是 PNG 时退回原蒙版。
+        engine_mask = None
+        if src.get("mask") and kind == "image":
+            try:
+                engine_mask = all_white_mask(src["init_image"])
+            except pngmod.PngError as exc:
+                log_event(event="white_mask_fallback", reason=str(exc)[:100])
+                engine_mask = src["mask"]
+
         req = {
             "prompt": prompt,
             "negative": (body.get("negative") or "").strip(),
@@ -602,7 +631,7 @@ class Handler(BaseHTTPRequestHandler):
             "fps": max(1, min(60, int(body.get("fps") or defaults.get("fps") or 16))),
             "init_image": src.get("init_image"),
             "end_image": src.get("end_image"),
-            "mask": src.get("mask"),
+            "mask": engine_mask,
             "strength": strength,
         }
 
@@ -641,6 +670,32 @@ class Handler(BaseHTTPRequestHandler):
                       message=exc.message[:200])
             self._sse("error", {"code": exc.code, "message": exc.message})
             return self._sse_end()
+
+        # 局部重绘：引擎那次拿的是整图满强度重绘，这里按蒙版把结果贴回原图。
+        # 放在业务层而不是适配器里——「哪些像素该换」是业务语义，不是引擎参数。
+        if src.get("mask") and kind == "image":
+            try:
+                with open(src["init_image"], "rb") as f:
+                    base_img = pngmod.decode(f.read())
+                with open(src["mask"], "rb") as f:
+                    mask_img = pngmod.decode(f.read())
+                with open(result["path"], "rb") as f:
+                    painted = pngmod.decode(f.read())
+                cw, chh, cch, cpx = pngmod.compose_mask(base_img, painted, mask_img)
+                with open(result["path"], "wb") as f:
+                    f.write(pngmod.encode(cw, chh, cch, cpx))
+                result["width"], result["height"] = cw, chh
+                result["size"] = os.path.getsize(result["path"])
+                log_event(event="inpaint_composed", w=cw, h=chh)
+            except pngmod.PngError as exc:
+                # 底图不是我们能解的 PNG（比如 JPEG 直接传上来）：
+                # 退回引擎的整图重绘，但要留痕并告诉前端，别让人以为局部生效了
+                log_event(event="inpaint_compose_skipped", reason=str(exc)[:120])
+                result["warnings"] = (result.get("warnings") or []) + [
+                    "底图不是 PNG，蒙版合成已跳过：结果是整图重绘"]
+            except Exception:
+                log_event(event="inpaint_compose_failed",
+                          trace=traceback.format_exc()[:800])
 
         url = "/generated/%s/%s" % (kind, os.path.basename(result["path"]))
         payload = {

@@ -69,6 +69,24 @@ JOBS = [
      "file": "vae/qwen_image_2.1_vae_bf16.safetensors",
      "dest": "models/components/vae/qwen_image_2.1_vae_bf16.safetensors",
      "size": 680000000},
+
+    # 局部重绘：SD1.5-inpaint 是单文件（UNet + VAE + CLIP 全在一个 ckpt 里），
+    # sd.cpp 直接 -m 加载。放在模型目录内而不是组件池：它自包含，拷走就能用。
+    {"name": "sd15-inpaint", "repo": "AI-ModelScope/stable-diffusion-inpainting",
+     "file": "sd-v1-5-inpainting.ckpt",
+     "dest": "models/image/sd1.5-inpaint/sd-v1-5-inpainting.ckpt", "size": 4260000000},
+
+    # 图生视频：Wan2.2 TI2V-5B 是 t2v + i2v 的统一模型。
+    # 为什么不选 Wan2.1 i2v：那个只有 14B（fp8 也要 13GB），8GB 显存根本进不去；
+    # 5B 的 Q4_K_M 只有 3.2GB，配合 te=cpu 能跑。
+    {"name": "wan22-diff", "repo": "unsloth/Wan2.2-TI2V-5B-GGUF",
+     "file": "Wan2.2-TI2V-5B-Q4_K_M.gguf",
+     "dest": "models/components/diffusion/Wan2.2-TI2V-5B-Q4_K_M.gguf",
+     "size": 3436000000},
+    # 5B 用的是专用 VAE，2.1 的换不了
+    {"name": "wan22-vae", "repo": "Comfy-Org/Wan_2.2_ComfyUI_Repackaged",
+     "file": "split_files/vae/wan2.2_vae.safetensors",
+     "dest": "models/components/vae/wan2.2_vae.safetensors", "size": 1406000000},
 ]
 
 

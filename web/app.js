@@ -23,6 +23,7 @@
     genAbort: null,
     generated: [],          // 当前分类下的生成产物
     refAsset: null,         // 参考素材（图生图 / 图生视频的首帧）
+    maskAsset: null,        // 涂抹出的蒙版（局部重绘用）
     defaults: null,         // 服务端持久化的默认参数，启动时拉取
     desktop: false          // 是否运行在桌面壳里（决定标题栏与几个能力走哪条路）
   };
@@ -849,7 +850,8 @@
       fps: Number($("gFps").value) || 12,
       // 文字始终是主控：素材只做条件输入，null 就是纯文字生成
       init_image: state.refAsset ? state.refAsset.id : null,
-      strength: state.refAsset ? Number($("gStrength").value) : null
+      strength: state.refAsset ? Number($("gStrength").value) : null,
+      mask: state.maskAsset ? state.maskAsset.id : null
     };
   }
 
@@ -882,7 +884,16 @@
     $("refThumb").hidden = !a;
     $("refDrop").hidden = !!a;
     $("strengthField").hidden = !a;
-    if (!a) return;
+    // 蒙版入口只给声明了 inpaint 的模型，而且必须先有参考图
+    $("maskBox").hidden = !(a && canInpaint());
+    if (!a) {
+      // 换图/清图后旧蒙版就失效了，必须一起丢掉
+      state.maskAsset = null;
+      $("maskState").hidden = true;
+      $("maskEditor").hidden = true;
+      $("btnMask").hidden = false;
+      return;
+    }
     $("refImg").src = a.url;
     $("refName").textContent = a.name || "参考图";
     $("refSize").textContent = Math.round((a.bytes || 0) / 1024) + " KB" +
@@ -907,6 +918,37 @@
     });
   }
 
+  // 统一转成 PNG 再上传：后端按蒙版合成时只解 PNG，直接传 JPEG 会让合成失效。
+  // 顺带在同一个 canvas 里把超大图缩到 1536 以内，手机照片也不至于撑爆上传。
+  function fileToPng(file, maxSide) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var im = new Image();
+      im.onload = function () {
+        var w = im.naturalWidth, h = im.naturalHeight;
+        if (!w || !h) {
+          URL.revokeObjectURL(url);
+          reject(new Error("图片尺寸异常"));
+          return;
+        }
+        var s = Math.min(1, (maxSide || 1536) / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * s));
+        var chh = Math.max(1, Math.round(h * s));
+        var c = document.createElement("canvas");
+        c.width = cw;
+        c.height = chh;
+        c.getContext("2d").drawImage(im, 0, 0, cw, chh);
+        URL.revokeObjectURL(url);
+        resolve({ b64: c.toDataURL("image/png").split(",")[1], width: cw, height: chh });
+      };
+      im.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error("图片解码失败"));
+      };
+      im.src = url;
+    });
+  }
+
   async function uploadRef(file) {
     if (!file) return;
     if (!/^image\/(png|jpeg|webp)$/.test(file.type || "")) {
@@ -919,25 +961,17 @@
     }
     $("refDrop").classList.add("loading");
     try {
-      var b64 = await fileToBase64(file);
+      var p = await fileToPng(file);
       var d = await api("/api/assets", {
         method: "POST",
-        body: { kind: "image", data: b64, name: file.name }
+        body: { kind: "image", data: p.b64, name: file.name }
       });
       var a = d.asset || {};
+      a.width = p.width;
+      a.height = p.height;
       // 分辨率跟着参考图走，否则重绘会把画面拉变形
-      await new Promise(function (resolve) {
-        var im = new Image();
-        im.onload = function () {
-          a.width = im.naturalWidth;
-          a.height = im.naturalHeight;
-          $("gW").value = Math.max(256, Math.min(1536, Math.round(im.naturalWidth / 8) * 8));
-          $("gH").value = Math.max(256, Math.min(1536, Math.round(im.naturalHeight / 8) * 8));
-          resolve();
-        };
-        im.onerror = function () { resolve(); };
-        im.src = a.url;
-      });
+      $("gW").value = Math.max(256, Math.min(1536, Math.round(p.width / 8) * 8));
+      $("gH").value = Math.max(256, Math.min(1536, Math.round(p.height / 8) * 8));
       state.refAsset = a;
       renderRef();
     } catch (e) {
@@ -975,6 +1009,174 @@
     });
     $("gStrength").addEventListener("input", function () {
       $("vStrength").textContent = Number(this.value).toFixed(2);
+    });
+    initMask();
+  }
+
+  /* ---------- 蒙版涂抹器：局部重绘的输入 ---------- */
+
+  var maskUI = { img: null, layer: null, lctx: null, drawing: false, last: null };
+
+  function canInpaint() {
+    var m = modelById($("pModel").value);
+    return ((m && m.capabilities) || []).indexOf("inpaint") >= 0;
+  }
+
+  // 画布里图片的居中矩形：等比缩放到画布内，避免涂抹坐标与导出错位
+  function maskGeom() {
+    var c = $("maskCanvas");
+    var W = c.width, H = c.height;
+    var a = state.refAsset || {};
+    var iw = a.width || 1, ih = a.height || 1;
+    var s = Math.min(W / iw, H / ih);
+    var dw = iw * s, dh = ih * s;
+    return { W: W, H: H, dw: dw, dh: dh, ox: (W - dw) / 2, oy: (H - dh) / 2 };
+  }
+
+  function maskRepaint() {
+    var c = $("maskCanvas");
+    var ctx = c.getContext("2d");
+    var g = maskGeom();
+    ctx.clearRect(0, 0, g.W, g.H);
+    ctx.fillStyle = "#f4f4f2";
+    ctx.fillRect(0, 0, g.W, g.H);
+    if (maskUI.img) ctx.drawImage(maskUI.img, g.ox, g.oy, g.dw, g.dh);
+    if (maskUI.layer) {
+      ctx.globalAlpha = 0.55;          // 涂抹层视觉上半透明，导出时是纯白
+      ctx.drawImage(maskUI.layer, 0, 0);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function maskOpen() {
+    if (!state.refAsset) return;
+    var c = $("maskCanvas");
+    var g0 = maskGeom();
+    maskUI.layer = document.createElement("canvas");
+    maskUI.layer.width = g0.W;
+    maskUI.layer.height = g0.H;
+    maskUI.lctx = maskUI.layer.getContext("2d");
+    maskUI.img = null;
+    var img = new Image();
+    img.onload = function () {
+      maskUI.img = img;
+      maskRepaint();
+    };
+    img.onerror = function () { genNotice("参考图加载失败"); };
+    img.src = state.refAsset.url;
+    $("maskEditor").hidden = false;
+    $("btnMask").hidden = true;
+    $("maskState").hidden = true;
+    state.maskAsset = null;
+  }
+
+  function maskClose() {
+    $("maskEditor").hidden = true;
+    $("btnMask").hidden = false;
+  }
+
+  function maskReset() {
+    state.maskAsset = null;
+    $("maskState").hidden = true;
+    $("btnMask").hidden = false;
+    $("maskEditor").hidden = true;
+  }
+
+  function maskPos(e) {
+    var c = $("maskCanvas");
+    var r = c.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) * (c.width / r.width),
+      y: (e.clientY - r.top) * (c.height / r.height)
+    };
+  }
+
+  function maskStroke(from, to) {
+    if (!maskUI.lctx) return;
+    var g = maskGeom();
+    var lctx = maskUI.lctx;
+    lctx.strokeStyle = "#ffffff";
+    lctx.lineWidth = Number($("maskBrush").value) * (g.W / 252);
+    lctx.lineCap = "round";
+    lctx.lineJoin = "round";
+    lctx.beginPath();
+    lctx.moveTo(from.x, from.y);
+    lctx.lineTo(to.x, to.y);
+    lctx.stroke();
+  }
+
+  function maskHasPaint() {
+    if (!maskUI.lctx) return false;
+    var g = maskGeom();
+    var d = maskUI.lctx.getImageData(0, 0, g.W, g.H).data;
+    for (var i = 3; i < d.length; i += 4) {
+      if (d[i] > 8) return true;
+    }
+    return false;
+  }
+
+  async function maskSubmit() {
+    var a = state.refAsset;
+    if (!a) return;
+    if (!maskHasPaint()) {
+      genNotice("还没涂抹任何区域");
+      return;
+    }
+    // 导出成与原图同尺寸的黑白图：白色 = 重绘区，黑色 = 保留区
+    var off = document.createElement("canvas");
+    off.width = a.width || 512;
+    off.height = a.height || 512;
+    var octx = off.getContext("2d");
+    octx.fillStyle = "#000000";
+    octx.fillRect(0, 0, off.width, off.height);
+    octx.drawImage(maskUI.layer, 0, 0, off.width, off.height);
+
+    try {
+      var b64 = off.toDataURL("image/png").split(",")[1];
+      var d = await api("/api/assets", {
+        method: "POST",
+        body: { kind: "image", data: b64, name: "mask-" + (a.name || "ref") + ".png" }
+      });
+      state.maskAsset = d.asset || null;
+      maskClose();
+      $("maskState").hidden = false;
+    } catch (e) {
+      genNotice("蒙版上传失败：" + (e.message || e));
+    }
+  }
+
+  function initMask() {
+    var c = $("maskCanvas");
+    $("btnMask").addEventListener("click", maskOpen);
+    $("maskClear").addEventListener("click", function () {
+      if (maskUI.lctx) maskUI.lctx.clearRect(0, 0, c.width, c.height);
+      maskRepaint();
+    });
+    $("maskDone").addEventListener("click", maskSubmit);
+    $("maskReset").addEventListener("click", maskReset);
+
+    c.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      maskUI.drawing = true;
+      maskUI.last = maskPos(e);
+      try { c.setPointerCapture(e.pointerId); } catch (_) {}
+      maskStroke(maskUI.last, maskUI.last);   // 点一下也要留下一个点
+      maskRepaint();
+    });
+    c.addEventListener("pointermove", function (e) {
+      if (!maskUI.drawing) return;
+      var p = maskPos(e);
+      maskStroke(maskUI.last, p);
+      maskUI.last = p;
+      maskRepaint();
+    });
+    c.addEventListener("pointerup", function () {
+      maskUI.drawing = false;
+      maskUI.last = null;
+    });
+    c.addEventListener("pointercancel", function () {
+      maskUI.drawing = false;
+      maskUI.last = null;
     });
   }
 

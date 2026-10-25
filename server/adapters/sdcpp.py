@@ -188,11 +188,18 @@ class SDCppAdapter(Adapter):
         init = req.get("init_image")
         if init:
             args += ["-i", str(init)]
-            if req.get("strength") is not None:
+            # 带蒙版时强制拉满强度：局部重绘交给上层按蒙版合成。
+            # 原因是实测这个版本的引擎自带 inpaint 只会「轻度重绘」——
+            # 蒙版区域内像素差异仅 16/255，而全图重绘是 55/255，
+            # 调 padding / denoising_strength / cfg / steps 都无法改善。
+            strength = 1.0 if req.get("mask") else req.get("strength")
+            if strength is not None:
                 # --strength 是加噪强度：越小越贴近原图，越大越放开发挥
-                args += ["--strength", "%.2f" % float(req["strength"])]
+                args += ["--strength", "%.2f" % float(strength)]
         if req.get("end_image"):
             args += ["--end-img", str(req["end_image"])]
+        # inpaint 模型必须收到 mask 才会重绘；上层会喂一张全白蒙版让它
+        # 做满强度整图重绘，真实蒙版留给 main.py 做像素级合成
         if req.get("mask"):
             args += ["--mask", str(req["mask"])]
         neg = str(req.get("negative") or "").strip()
